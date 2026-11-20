@@ -15,3 +15,10 @@
 
 Застосунок читає файл за адресою:
 https://raw.githubusercontent.com/vitaliylegenchuk-dot/oblik-avto-data/main/fuel.json
+
+## weather.json
+
+Погода й небезпеки на дорогах для 27 міст (обласні центри та кілька великих міст). Оновлює бот GitHub Actions кожні 3 години (`scripts/weather.py`). Джерело — Open-Meteo.
+
+- `places[]` — місто: `id`, `n` (назва), `ob` (область), `now` (зараз), `days` (3 дні), `hours` (24 год, кожні 2 год), `haz` (небезпеки на добу)
+- `haz[]` — `k` (ice, snow, fog, wind, storm, rain, frost, heat), `lvl` (1–3), `t` (назва), `x` (порада), `from`, `when`
