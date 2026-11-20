@@ -7,12 +7,14 @@
   "source_url": "https://www.ceskenoviny.cz/ukrinform/ukrajinsky/zprava.php?id=1465111",
   "prices": {
     "a95p": 91.59,
-    "a95": 87.90,
+    "a95": 87.9,
     "a92": 84.44,
-    "dp": 101.00,
-    "gas": 62.37
+    "dp": 101.0,
+    "gas": 62.37,
+    "a100": 98.72
   },
   "names": {
+    "a100": "А-100",
     "a95p": "А-95 преміум",
     "a95": "А-95",
     "a92": "А-92",
@@ -20,6 +22,19 @@
     "gas": "Автогаз"
   },
   "history": [
-    { "date": "2026-11-18", "a95p": 91.59, "a95": 87.90, "a92": 84.44, "dp": 101.00, "gas": 62.37 }
-  ]
+    {
+      "date": "2026-11-18",
+      "a95p": 91.59,
+      "a95": 87.9,
+      "a92": 84.44,
+      "dp": 101.0,
+      "gas": 62.37,
+      "a100": 98.72
+    }
+  ],
+  "a100": {
+    "date": "2026-11-20",
+    "source": "Середня по мережах UPG, ОККО, WOG, SOCAR, KLO (Главком); Мінфін середню ціну А-100 не рахує",
+    "source_url": "https://glavcom.ua/economics/personal-money/azs-prodovzhili-znizhuvati-tsini-na-benzin-ta-dizel-skilki-koshtuje-palne-20-listopada-2026-roku-1156870.html"
+  }
 }
