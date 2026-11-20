@@ -22,3 +22,10 @@ https://raw.githubusercontent.com/vitaliylegenchuk-dot/oblik-avto-data/main/fuel
 
 - `places[]` — місто: `id`, `n` (назва), `ob` (область), `now` (зараз), `days` (3 дні), `hours` (24 год, кожні 2 год), `haz` (небезпеки на добу)
 - `haz[]` — `k` (ice, snow, fog, wind, storm, rain, frost, heat), `lvl` (1–3), `t` (назва), `x` (порада), `from`, `when`
+
+## signs.json
+
+Каталог дорожніх знаків України (крім основних, вбудованих у застосунок). Застосунок завантажує його на вимогу кнопкою «Показати всі знаки».
+
+- `signs[]` — `n` (номер за ДСТУ 4100:2021), `g` (група), `t` (назва українською), `svg` (зображення)
+- Зображення: Wikimedia Commons (суспільне надбання), через пакет @road-signs/ua (MIT)
