@@ -1,6 +1,6 @@
 {
   "updated": "2026-11-20",
-  "checked": "2026-11-21",
+  "checked": "2026-11-22",
   "currency": "UAH",
   "unit": "л",
   "source": "Середні ціни по Україні, minfin.com.ua (за даними Укрінформу)",
@@ -89,9 +89,9 @@
     }
   ],
   "a100": {
-    "date": "2026-11-21",
+    "date": "2026-11-22",
     "source": "Середня по мережах UPG, ОККО, WOG, SOCAR, KLO (Главком); Мінфін середню ціну А-100 не рахує",
-    "source_url": "https://glavcom.ua/economics/personal-money/tsini-na-palne-21-listopada-2026-roku-skilki-koshtujut-benzin-dizel-ta-haz-na-azs-1157104.html"
+    "source_url": "https://glavcom.ua/economics/personal-money/tsini-na-palne-22-listopada-skilki-koshtuje-benzin-dizel-ta-haz-1157199.html"
   },
   "history_note": "Записи до 18.11.2026 — середні ціни Мінфіну (Консалтингова група А-95): 07.07.2025, 05.01.2026, 01.04.2026, 15.07.2026, 07.10.2026, 26.10.2026. Далі — щоп’ятниці."
 }
