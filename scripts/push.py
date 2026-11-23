@@ -1,7 +1,8 @@
 """Пуш-сповіщення про небезпеки на дорогах через Firebase (FCM).
 
-Читає weather.json, і для кожної нової небезпеки (рівень 2+) надсилає повідомлення
-у тему wx_<місто>. Вже надіслані ключі зберігаються в push_sent.json, щоб не повторюватись.
+Читає weather.json і для кожного міста надсилає ОДНЕ повідомлення про нові небезпеки (рівень 2+),
+які почнуться протягом найближчих 12 годин. Тиха година 22:00–07:00 (Київ): нічого не надсилаємо,
+усе накопичене піде першим ранковим запуском. Вже надіслані ключі — у push_sent.json.
 Ключ сервісного акаунта Firebase береться з секрету FCM_SA (вміст JSON-файлу).
 """
 import datetime
@@ -40,27 +41,50 @@ def main():
     d = json.load(open("weather.json", encoding="utf-8"))
     n_ok = 0
     errs = []
-    for p in d["places"]:
+    now = datetime.datetime.now(ZoneInfo("Europe/Kyiv")).replace(tzinfo=None)
+    quiet = now.hour >= 22 or now.hour < 7
+    horizon = now + datetime.timedelta(hours=12)
+    for p in ([] if quiet else d["places"]):
+        fresh = []
         for z in p.get("haz", []):
-            frm = (z.get("from") or "")[:10]
-            if z.get("lvl", 0) < 2 or len(frm) < 10 or frm < today:
+            frm = z.get("from") or ""
+            if z.get("lvl", 0) < 2 or len(frm) < 16 or frm[:10] < today:
                 continue
-            key = f"{p['id']}:{z['k']}:{frm}"
-            if key in seen:
+            try:
+                start = datetime.datetime.fromisoformat(frm[:16])
+            except ValueError:
                 continue
-            msg = {"message": {
-                "topic": "wx_" + p["id"],
-                "data": {"type": "wx", "place": p["id"], "n": p.get("n", ""), "k": z["k"],
-                         "fr": z.get("from", ""), "t": z.get("t", ""), "x": z.get("x", ""),
-                         "when": z.get("when", "")},
-                "android": {"priority": "high", "ttl": "21600s"},
-            }}
-            r = s.post(url, json=msg, timeout=20)
-            if r.status_code == 200:
-                seen.add(key); sent.append(key); n_ok += 1
-            else:
-                print("помилка", key, r.status_code, r.text[:300], file=sys.stderr)
-                errs.append(f"{key} {r.status_code} {r.text[:400]}")
+            if start > horizon:
+                continue  # ще далеко — надішлемо пізніше, коли стане актуально
+            key = f"{p['id']}:{z['k']}:{frm[:10]}"
+            if key not in seen:
+                fresh.append((z, key))
+        if not fresh:
+            continue
+        fresh.sort(key=lambda zk: (-zk[0].get("lvl", 0), zk[0].get("from", "")))
+        top = fresh[0][0]
+        first = min((zk[0] for zk in fresh), key=lambda z: z.get("from", ""))
+        names = [zk[0].get("t", "") for zk in fresh]
+        title = ", ".join([names[0]] + [n[:1].lower() + n[1:] for n in names[1:]])
+        keys = [zk[1] for zk in fresh]
+        msg = {"message": {
+            "topic": "wx_" + p["id"],
+            "data": {"type": "wx", "place": p["id"], "n": p.get("n", ""),
+                     "k": "+".join(zk[0]["k"] for zk in fresh), "keys": ",".join(keys),
+                     "fr": first.get("from", ""), "t": title, "x": top.get("x", ""),
+                     "when": first.get("when", "")},
+            "android": {"priority": "high", "ttl": "21600s"},
+        }}
+        r = s.post(url, json=msg, timeout=20)
+        if r.status_code == 200:
+            for k in keys:
+                seen.add(k); sent.append(k)
+            n_ok += 1
+        else:
+            print("помилка", p["id"], r.status_code, r.text[:300], file=sys.stderr)
+            errs.append(f"{p['id']} {r.status_code} {r.text[:400]}")
+    if quiet:
+        errs.append("тиха година — пуші відкладено до ранку")
     # Тестове повідомлення: push_test.json = {"place": "cherkasy"}
     if os.path.exists("push_test.json"):
         try:

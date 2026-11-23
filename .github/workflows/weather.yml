@@ -2,6 +2,7 @@ name: Погода на дорогах
 on:
   schedule:
     - cron: "17 */3 * * *"
+    - cron: "1 4,5 * * *"   # ранковий запуск після тихої години (07:01 за Києвом узимку й улітку)
   workflow_dispatch:
   push:
     paths: ["scripts/weather.py", "scripts/push.py", ".github/workflows/weather.yml"]
