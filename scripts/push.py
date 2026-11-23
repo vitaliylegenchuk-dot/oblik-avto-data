@@ -51,7 +51,7 @@ def main():
             msg = {"message": {
                 "topic": "wx_" + p["id"],
                 "data": {"type": "wx", "place": p["id"], "n": p.get("n", ""), "k": z["k"],
-                         "from": z.get("from", ""), "t": z.get("t", ""), "x": z.get("x", ""),
+                         "fr": z.get("from", ""), "t": z.get("t", ""), "x": z.get("x", ""),
                          "when": z.get("when", "")},
                 "android": {"priority": "high", "ttl": "21600s"},
             }}
