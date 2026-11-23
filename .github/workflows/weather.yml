@@ -26,7 +26,7 @@ jobs:
         run: |
           git config user.name "weather-bot"
           git config user.email "weather-bot@users.noreply.github.com"
-          git add weather.json; git add push_sent.json push_log.txt 2>/dev/null || true
+          git add weather.json; git add -A push_sent.json push_log.txt push_test.json 2>/dev/null || true
           git diff --cached --quiet && exit 0
           git commit -m "Погода: $(date -u +'%Y-%m-%d %H:%M') UTC"
           for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done

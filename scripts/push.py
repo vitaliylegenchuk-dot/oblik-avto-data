@@ -61,6 +61,20 @@ def main():
             else:
                 print("помилка", key, r.status_code, r.text[:300], file=sys.stderr)
                 errs.append(f"{key} {r.status_code} {r.text[:400]}")
+    # Тестове повідомлення: push_test.json = {"place": "cherkasy"}
+    if os.path.exists("push_test.json"):
+        try:
+            tp = json.load(open("push_test.json", encoding="utf-8")).get("place", "cherkasy")
+            pn = next((p.get("n", "") for p in d["places"] if p["id"] == tp), tp)
+            now = datetime.datetime.now(ZoneInfo("Europe/Kyiv"))
+            r = s.post(url, json={"message": {"topic": "wx_" + tp, "android": {"priority": "high", "ttl": "3600s"},
+                "data": {"type": "wx", "place": tp, "n": pn, "k": "test" + now.strftime("%H%M%S"),
+                         "fr": now.strftime("%Y-%m-%dT%H:%M"), "t": "Тестове сповіщення",
+                         "x": "Пуші працюють: попередження про погоду приходитимуть одразу.", "when": ""}}}, timeout=20)
+            errs.append(f"test {tp} {r.status_code} {r.text[:200]}")
+        except Exception as e:
+            errs.append(f"test error {e}")
+        os.remove("push_test.json")
     json.dump(sorted(set(sent)), open(SENT, "w", encoding="utf-8"), ensure_ascii=False, indent=0)
     print("надіслано пушів:", n_ok)
     open("push_log.txt", "w", encoding="utf-8").write(
