@@ -39,6 +39,7 @@ def main():
 
     d = json.load(open("weather.json", encoding="utf-8"))
     n_ok = 0
+    errs = []
     for p in d["places"]:
         for z in p.get("haz", []):
             frm = (z.get("from") or "")[:10]
@@ -59,8 +60,11 @@ def main():
                 seen.add(key); sent.append(key); n_ok += 1
             else:
                 print("помилка", key, r.status_code, r.text[:300], file=sys.stderr)
+                errs.append(f"{key} {r.status_code} {r.text[:400]}")
     json.dump(sorted(set(sent)), open(SENT, "w", encoding="utf-8"), ensure_ascii=False, indent=0)
     print("надіслано пушів:", n_ok)
+    open("push_log.txt", "w", encoding="utf-8").write(
+        datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC") + f" · надіслано {n_ok}, помилок {len(errs)}\n" + "\n".join(errs[:3]) + "\n")
 
 
 if __name__ == "__main__":
