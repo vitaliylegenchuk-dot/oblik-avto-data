@@ -22,6 +22,7 @@ jobs:
         run: |
           git config user.name "catalog-bot"
           git config user.email "catalog-bot@users.noreply.github.com"
+          [ -d ria ] || exit 0
           git add -A -- ria
           git diff --cached --quiet && exit 0
           git commit -m "Довідник AUTO.RIA: $(date -u +'%Y-%m-%d %H:%M') UTC"
