@@ -28,7 +28,11 @@ API = "https://developers.ria.com"
 DIR = "ria"
 DB = f"{DIR}/db.json"
 STATE = f"{DIR}/state.json"
-RUN_MAX = 24            # запитів за один запуск (ліміт AUTO.RIA — 30 на годину)
+RUN_MAX = 24            # запитів за один запуск
+HOUR_MAX = 27           # ліміт AUTO.RIA — 30 за будь-які 60 хвилин; рахуємо самі, з запасом
+PRICE_DAYS = 7          # середню ціну авто користувача оновлюємо раз на тиждень
+# пальне застосунку → типи пального AUTO.RIA (1 бензин, 2 дизель, 3 газ, 4 газ/бензин, 6 електро, 9 пропан-бутан)
+FUEL_RIA = {"Дизель": [2], "А-95": [1], "А-92": [1], "А-100": [1], "Газ": [3, 4, 9], "Газ і бензин": [4, 9], "ev": [6]}
 MONTH_MAX = 960         # з 1000 на місяць лишаємо запас
 CRAWL_MAX = 720         # з них на початкове наповнення; решта — щотижневе оновлення
 # Категорії AUTO.RIA: 1 легкові, 2 мото, 6 вантажні, 7 автобуси, 8 автодома, 4 спецтехніка, 5 причепи
@@ -91,7 +95,8 @@ def fs_requests():
                 f = doc.get("fields", {})
                 n = f.get("n", {}).get("stringValue", "")
                 if n:
-                    out.append({"id": doc["name"].rsplit("/", 1)[-1], "n": n[:60], "vt": f.get("vt", {}).get("stringValue", "car")})
+                    out.append({"id": doc["name"].rsplit("/", 1)[-1], "n": n[:60], "vt": f.get("vt", {}).get("stringValue", "car"),
+                                "y": f.get("y", {}).get("stringValue", ""), "f": f.get("f", {}).get("stringValue", "")})
             tok = d.get("nextPageToken", "")
             if not tok:
                 break
@@ -206,10 +211,13 @@ def main():
     reqs = fs_requests()
     for rq in reqs:
         r = st["req"].setdefault(rq["id"], {"n": rq["n"], "vt": rq["vt"], "ok": False})
-        r["n"], r["vt"] = rq["n"], rq["vt"]
+        r["n"], r["vt"], r["y"], r["f"] = rq["n"], rq["vt"], rq.get("y", ""), rq.get("f", "")
     pri = []
     for rid, r in st["req"].items():
         if r.get("ok"):
+            pd = st.setdefault("price", {}).get(rid, "")
+            if r.get("y") and r.get("model") and (not pd or (datetime.date.fromisoformat(today) - datetime.date.fromisoformat(pd)).days >= PRICE_DAYS):
+                pri.append(["price", rid, "r"])
             continue
         mark, mid, _ = resolve(db, r["n"], r["vt"])
         if not mark:
@@ -222,7 +230,10 @@ def main():
         if not mid:
             r["why"] = "моделі не знайдено"
             continue
-        r["model"] = int(mid)
+        r["model"], r["mark"], r["cat"] = int(mid), mark["id"], mark["cat"]
+        pd = st.setdefault("price", {}).get(rid, "")
+        if r.get("y") and (not pd or (datetime.date.fromisoformat(today) - datetime.date.fromisoformat(pd)).days >= PRICE_DAYS):
+            pri.append(["price", rid, "r"])
         if json.dumps(["gens", int(mid)]) not in done:
             pri.append(["gens", int(mid), "r"]); r["why"] = "чекаємо покоління"
             continue
@@ -239,14 +250,18 @@ def main():
         push(t, front=True)
 
     n_run, added, errs = 0, 0, []
-    while q and n_run < RUN_MAX and st["used"] < MONTH_MAX:
+    nowts = time.time()
+    st["hour"] = [x for x in st.get("hour", []) if nowts - x < 3600]
+    run_max = max(0, min(RUN_MAX, HOUR_MAX - len(st["hour"])))
+    prices = load(f"{DIR}/prices.json", {"src": "AUTO.RIA", "url": "https://auto.ria.com", "cars": {}})
+    while q and n_run < run_max and st["used"] < MONTH_MAX:
         t = q[0]
         cur = t
         weekly = t[-1] == "w"
         prio = t[-1] == "r"
         if prio:
             t = t[:-1]
-        if not weekly and json.dumps(t) in done:
+        if not weekly and t[0] != "price" and json.dumps(t) in done:
             q.remove(cur)  # вже зроблено (наприклад, раніше як пріоритетне)
             if not q and st.get("later"):
                 q.extend(st.pop("later"))
@@ -297,6 +312,35 @@ def main():
                                 push(["mods", gid, "r"], front=True)  # покоління авто користувача — одразу й модифікації
                             else:
                                 push(tk)
+            elif kind == "price":
+                rid = t[1]
+                r = st["req"].get(rid, {})
+                if r.get("model") and r.get("y"):
+                    y = int(r["y"])
+                    res, span = None, 0
+                    for span in (0, 1):  # спершу точний рік; якщо оголошень мало — ±1 рік
+                        qs = f"/auto/average_price?main_category={r.get('cat', 1)}&marka_id={r['mark']}&model_id={r['model']}&yers={y - span}&yers={y + span}"
+                        fu = FUEL_RIA.get("ev" if r.get("vt") == "ev" else r.get("f", ""), [])
+                        qs += "".join(f"&fuel_id={x}" for x in fu)
+                        res = get(qs, key)
+                        st["used"] += 1; n_run += 1; st["hour"].append(time.time())
+                        if res and res.get("total", 0) >= 3:
+                            break
+                        if n_run >= run_max:
+                            break
+                    st["price"][rid] = today
+                    pc_ = prices["cars"].setdefault(rid, {"n": r["n"], "y": y, "hist": []})
+                    if res and res.get("total"):
+                        pc = res.get("percentiles", {}) or {}
+                        val = lambda k: round(pc.get(k) or pc.get(str(float(k))) or 0)
+                        pc_.update({"n": r["n"], "y": y, "upd": today, "total": res.get("total"),
+                                    "mean": round(res.get("arithmeticMean") or 0), "iq": round(res.get("interQuartileMean") or 0),
+                                    "p25": val("25.0"), "p50": val("50.0"), "p75": val("75.0"), "years": [y - span, y + span], "none": False})
+                        if not pc_["hist"] or pc_["hist"][-1][0] != today:
+                            pc_["hist"].append([today, pc_["p50"] or pc_["iq"]])  # історія — щоб показати, як дешевшає авто
+                    else:
+                        pc_["upd"], pc_["none"] = today, True
+                    n_run -= 1; st["used"] -= 1; st["hour"].pop()  # нижче лічильники додадуться ще раз
             elif kind == "mods":
                 gen = t[1]
                 res = get(f"/modifications/by/generation/{gen}/modifications", key) or []
@@ -313,15 +357,17 @@ def main():
             q.append(cur)
             n_run += 1
             st["used"] += 1
+            st["hour"].append(time.time())
             continue
         if cur in q:
             q.remove(cur)
-        if not weekly:
+        if not weekly and kind != "price":
             done.add(json.dumps(t))
             if t in q:
                 q.remove(t)
         n_run += 1
         st["used"] += 1
+        st["hour"].append(time.time())
         if not q and st.get("later"):
             q.extend(st.pop("later"))
         time.sleep(1.2)
@@ -330,6 +376,7 @@ def main():
     st["left"] = len(q) + len(st.get("later", []))
     save(DB, db)
     save(STATE, st, pretty=True)
+    save(f"{DIR}/prices.json", dict(prices, updated=today), pretty=True)
     export(db, today)
     msg = (f"{datetime.datetime.utcnow():%Y-%m-%d %H:%M} UTC · запитів {n_run}, за місяць {st['used']}, "
            f"нових записів {added}, у черзі {st['left']}; марок {len(db['marks'])}, моделей {len(db['models'])}, "
