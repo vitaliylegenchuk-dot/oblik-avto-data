@@ -9,6 +9,9 @@
 - нове додаємо (поле "first" — коли вперше побачили);
 - щотижня перевіряємо марки й моделі популярних марок, щоб підхопити новинки.
 
+Пріоритет: авто, які є в користувачів (колекція riaReq у Firestore — лише назва моделі й вид транспорту),
+завантажуються першими й поза місячним бюджетом наповнення.
+
 Ключ — у секреті RIA_KEY. Внутрішня база — ria/db.json, стан черги — ria/state.json.
 Для застосунку: ria/marks.json (список марок) і ria/m/<id марки>.json (моделі → покоління → модифікації).
 Дані: AUTO.RIA (https://auto.ria.com) — посилання на джерело обов'язкове.
@@ -55,6 +58,73 @@ def save(path, obj, pretty=False):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1 if pretty else None, separators=None if pretty else (",", ":"))
     os.replace(tmp, path)
+
+
+VT_CAT = {"car": [1], "ev": [1], "van": [1, 6, 7], "truck": [6, 1], "tractor": [6], "bus": [7, 6], "moto": [2]}
+
+
+def norm(x):
+    x = (x or "").lower().replace("ё", "е")
+    return "".join(ch if ch.isalnum() else " " for ch in x).split()
+
+
+def fs_requests():
+    """Авто, які є в користувачів: колекція riaReq у Firestore (лише назва моделі й вид транспорту)."""
+    sa = os.environ.get("FCM_SA", "").strip()
+    if not sa:
+        return []
+    try:
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import AuthorizedSession
+        info = json.loads(sa)
+        cred = service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/datastore"])
+        s = AuthorizedSession(cred)
+        url = f"https://firestore.googleapis.com/v1/projects/{info['project_id']}/databases/(default)/documents/riaReq"
+        out, tok = [], ""
+        for _ in range(20):
+            r = s.get(url, params={"pageSize": 300, **({"pageToken": tok} if tok else {})}, timeout=30)
+            if r.status_code != 200:
+                print("riaReq:", r.status_code, r.text[:200], file=sys.stderr)
+                break
+            d = r.json()
+            for doc in d.get("documents", []):
+                f = doc.get("fields", {})
+                n = f.get("n", {}).get("stringValue", "")
+                if n:
+                    out.append({"id": doc["name"].rsplit("/", 1)[-1], "n": n[:60], "vt": f.get("vt", {}).get("stringValue", "car")})
+            tok = d.get("nextPageToken", "")
+            if not tok:
+                break
+        return out
+    except Exception as e:
+        print("riaReq помилка:", e, file=sys.stderr)
+        return []
+
+
+def resolve(db, name, vt):
+    """«Ford Fusion» → (марка, модель) за довідником. Повертає (mark, model, cats)."""
+    w = norm(name)
+    cats = VT_CAT.get(vt, [1])
+    best = None
+    for m in db["marks"].values():
+        if m.get("cat") not in cats:
+            continue
+        for alt in m["n"].split(" / "):
+            a = norm(alt)
+            if a and w[:len(a)] == a and (best is None or len(a) > best[1] or (len(a) == best[1] and cats.index(m["cat"]) < cats.index(best[0]["cat"]))):
+                best = (m, len(a))
+    if not best:
+        return None, None, cats
+    mark, k = best
+    rest = w[k:]
+    mdl = None
+    for mid, md in db["models"].items():
+        if md.get("mk") != mark["id"] or md.get("cat") != mark["cat"]:
+            continue
+        a = norm(md["n"])
+        if a and rest[:len(a)] == a and (mdl is None or len(a) > mdl[1]):
+            mdl = (mid, len(a))
+    return mark, (mdl[0] if mdl else None), cats
 
 
 class Limit(Exception):
@@ -131,11 +201,57 @@ def main():
             push(t, front=True)
         st["weekly"] = wk
 
+    # авто користувачів — першими в черзі
+    st.setdefault("req", {})
+    reqs = fs_requests()
+    for rq in reqs:
+        r = st["req"].setdefault(rq["id"], {"n": rq["n"], "vt": rq["vt"], "ok": False})
+        r["n"], r["vt"] = rq["n"], rq["vt"]
+    pri = []
+    for rid, r in st["req"].items():
+        if r.get("ok"):
+            continue
+        mark, mid, _ = resolve(db, r["n"], r["vt"])
+        if not mark:
+            r["why"] = "марки немає в довіднику"
+            continue
+        mk_models = [x for x in db["models"].values() if x.get("mk") == mark["id"] and x.get("cat") == mark["cat"]]
+        if not mk_models:
+            pri.append(["models", mark["cat"], mark["id"], "r"]); r["why"] = "чекаємо моделі марки"
+            continue
+        if not mid:
+            r["why"] = "моделі не знайдено"
+            continue
+        r["model"] = int(mid)
+        if json.dumps(["gens", int(mid)]) not in done:
+            pri.append(["gens", int(mid), "r"]); r["why"] = "чекаємо покоління"
+            continue
+        gens = [gid for gid, g in db["gens"].items() if str(g.get("md")) == str(mid)]
+        need = [["mods", int(g), "r"] for g in gens if json.dumps(["mods", int(g)]) not in done]
+        if need:
+            pri += need; r["why"] = "чекаємо модифікації"
+            continue
+        r["ok"], r["why"] = True, ""
+    for t in reversed(pri):
+        base = t[:-1]
+        if base in q:
+            q.remove(base)
+        push(t, front=True)
+
     n_run, added, errs = 0, 0, []
     while q and n_run < RUN_MAX and st["used"] < MONTH_MAX:
         t = q[0]
+        cur = t
         weekly = t[-1] == "w"
-        if not weekly and st["used"] >= CRAWL_MAX:
+        prio = t[-1] == "r"
+        if prio:
+            t = t[:-1]
+        if not weekly and json.dumps(t) in done:
+            q.remove(cur)  # вже зроблено (наприклад, раніше як пріоритетне)
+            if not q and st.get("later"):
+                q.extend(st.pop("later"))
+            continue
+        if not weekly and not prio and st["used"] >= CRAWL_MAX:
             break  # бюджет наповнення на місяць вичерпано — лишаємо запас на щотижневе оновлення
         kind = t[0]
         try:
@@ -161,7 +277,7 @@ def main():
                     if upsert(db["models"], m["value"], {"n": m["name"], "mk": mark, "cat": cat}, today):
                         added += 1
                     tk = ["gens", m["value"]]
-                    if json.dumps(tk) not in done:
+                    if json.dumps(tk) not in done and ["gens", m["value"], "r"] not in q:
                         push(tk)
             elif kind == "gens":
                 model = t[1]
@@ -177,7 +293,10 @@ def main():
                             added += 1
                         tk = ["mods", gid]
                         if json.dumps(tk) not in done:
-                            push(tk)
+                            if prio:
+                                push(["mods", gid, "r"], front=True)  # покоління авто користувача — одразу й модифікації
+                            else:
+                                push(tk)
             elif kind == "mods":
                 gen = t[1]
                 res = get(f"/modifications/by/generation/{gen}/modifications", key) or []
@@ -189,13 +308,18 @@ def main():
             break
         except Exception as e:  # мережа тощо — спробуємо наступного разу
             errs.append(f"{t}: {e}")
-            q.append(q.pop(0))
+            if cur in q:
+                q.remove(cur)
+            q.append(cur)
             n_run += 1
             st["used"] += 1
             continue
-        q.pop(0)
+        if cur in q:
+            q.remove(cur)
         if not weekly:
             done.add(json.dumps(t))
+            if t in q:
+                q.remove(t)
         n_run += 1
         st["used"] += 1
         if not q and st.get("later"):
@@ -209,7 +333,8 @@ def main():
     export(db, today)
     msg = (f"{datetime.datetime.utcnow():%Y-%m-%d %H:%M} UTC · запитів {n_run}, за місяць {st['used']}, "
            f"нових записів {added}, у черзі {st['left']}; марок {len(db['marks'])}, моделей {len(db['models'])}, "
-           f"поколінь {len(db['gens'])}, модифікацій {len(db['mods'])}")
+           f"поколінь {len(db['gens'])}, модифікацій {len(db['mods'])}; авто користувачів {len(st['req'])}, "
+           f"готово {sum(1 for r in st['req'].values() if r.get('ok'))}")
     print(msg)
     open(f"{DIR}/log.txt", "w", encoding="utf-8").write(msg + "\n" + "\n".join(errs[:5]) + "\n")
 
