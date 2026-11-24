@@ -86,8 +86,16 @@ def urgent(s, url):
     if not s:
         return False
     try:
-        r = s.get(url, params={"pageSize": 300, "mask.fieldPaths": "n"}, timeout=30)
-        return any(d["name"].rsplit("/", 1)[-1].startswith("now_") for d in r.json().get("documents", []))
+        # лише документи now_* і не більше одного: Firestore рахує читання за кожен повернений документ
+        # (мінімум 1 на запит), тож це ~5,8 тис. читань на добу з безкоштовних 50 тис.
+        base = url.rsplit("/documents/", 1)[0] + "/documents"
+        q = {"structuredQuery": {"from": [{"collectionId": "riaReq"}], "select": {"fields": [{"fieldPath": "__name__"}]},
+             "where": {"compositeFilter": {"op": "AND", "filters": [
+                 {"fieldFilter": {"field": {"fieldPath": "__name__"}, "op": "GREATER_THAN_OR_EQUAL", "value": {"referenceValue": url.split("/v1/", 1)[1] + "/now_"}}},
+                 {"fieldFilter": {"field": {"fieldPath": "__name__"}, "op": "LESS_THAN", "value": {"referenceValue": url.split("/v1/", 1)[1] + "/now`"}}}]}},
+             "limit": 1}}
+        r = s.post(base + ":runQuery", json=q, timeout=30)
+        return any(x.get("document") for x in r.json())
     except Exception as e:
         print("riaReq:", e, file=sys.stderr)
         return False

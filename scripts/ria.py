@@ -34,6 +34,7 @@ RUN_MAX = 24            # запитів за один запуск
 HOUR_MAX = 27           # ліміт AUTO.RIA — 30 за будь-які 60 хвилин; рахуємо самі, з запасом
 RESERVE = 5             # з них стільки щогодини лишаємо вільними для кнопки «Завантажити зараз» у застосунку
 URG_MAX = 8             # не більше стільки запитів за один позачерговий запуск
+URG_DAY = 40            # і не більше стільки позачергових запитів на добу (захист місячного ліміту від зловживань)
 URG = os.environ.get("RIA_MODE") == "now"   # позачерговий запуск: лише авто, для яких натиснули кнопку
 PRICE_DAYS = 7          # середню ціну авто користувача оновлюємо раз на тиждень
 # пальне застосунку → типи пального AUTO.RIA (1 бензин, 2 дизель, 3 газ, 4 газ/бензин, 6 електро, 9 пропан-бутан)
@@ -394,7 +395,10 @@ def main():
     if URG:  # лише завдання цих авто; решта черги чекає звичайного запуску
         orig = [t for t in q if t not in pri]
         q[:] = [t for t in pri]
-        run_max = max(0, min(URG_MAX, HOUR_MAX - len(st["hour"])))
+        ud = st.setdefault("urg_day", {"d": today, "n": 0})
+        if ud.get("d") != today:
+            ud.update(d=today, n=0)
+        run_max = max(0, min(URG_MAX, HOUR_MAX - len(st["hour"]), URG_DAY - ud["n"]))
         if run_max == 0:
             print("Годинний ліміт AUTO.RIA вичерпано — позачерговий запит виконаємо, щойно звільниться")
             return
@@ -542,6 +546,7 @@ def main():
         time.sleep(1.2)
 
     if URG:
+        st["urg_day"]["n"] += n_run
         left = [t for t in q if t[-1] == "r"]
         q[:] = left + [t for t in orig if t not in left]
         fin = []
