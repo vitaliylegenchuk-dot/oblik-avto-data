@@ -1,0 +1,28 @@
+name: Довідник авто AUTO.RIA
+on:
+  schedule:
+    - cron: "41 * * * *"   # щогодини, до 24 запитів за раз (ліміт AUTO.RIA — 30 на годину, 1000 на місяць)
+  workflow_dispatch:
+  push:
+    paths: ["scripts/ria.py", ".github/workflows/ria.yml", "ria/kick"]
+permissions:
+  contents: write
+concurrency: weather
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Оновити довідник
+        env: { RIA_KEY: "${{ secrets.RIA_KEY }}" }
+        run: python scripts/ria.py
+      - name: Зберегти
+        run: |
+          git config user.name "catalog-bot"
+          git config user.email "catalog-bot@users.noreply.github.com"
+          git add -A -- ria
+          git diff --cached --quiet && exit 0
+          git commit -m "Довідник AUTO.RIA: $(date -u +'%Y-%m-%d %H:%M') UTC"
+          for i in 1 2 3; do git pull --rebase --autostash -q && git push && break; sleep 5; done

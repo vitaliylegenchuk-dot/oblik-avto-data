@@ -1,0 +1,245 @@
+"""Довідник авто з AUTO.RIA (developers.ria.com): марки, моделі, покоління, модифікації.
+
+Безкоштовний ключ: 1000 запитів на місяць і 30 на годину. Тому довідник збирається поступово:
+кожен запуск (щогодини) робить не більше RUN_MAX запитів, за місяць — не більше MONTH_MAX.
+Спочатку популярні в Україні марки, потім решта.
+
+Правила зберігання:
+- нічого не видаляємо: якщо запис зник з AUTO.RIA, він лишається, просто не оновлюється поле "seen";
+- нове додаємо (поле "first" — коли вперше побачили);
+- щотижня перевіряємо марки й моделі популярних марок, щоб підхопити новинки.
+
+Ключ — у секреті RIA_KEY. Внутрішня база — ria/db.json, стан черги — ria/state.json.
+Для застосунку: ria/marks.json (список марок) і ria/m/<id марки>.json (моделі → покоління → модифікації).
+Дані: AUTO.RIA (https://auto.ria.com) — посилання на джерело обов'язкове.
+"""
+import datetime
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+
+API = "https://developers.ria.com"
+DIR = "ria"
+DB = f"{DIR}/db.json"
+STATE = f"{DIR}/state.json"
+RUN_MAX = 24            # запитів за один запуск (ліміт AUTO.RIA — 30 на годину)
+MONTH_MAX = 960         # з 1000 на місяць лишаємо запас
+CRAWL_MAX = 720         # з них на початкове наповнення; решта — щотижневе оновлення
+# Категорії AUTO.RIA: 1 легкові, 2 мото, 6 вантажні, 7 автобуси, 8 автодома, 4 спецтехніка, 5 причепи
+CATS = [1, 6, 7, 2, 8, 5, 4]
+# Популярні в Україні марки (назви як на AUTO.RIA) — їх збираємо першими й оновлюємо щотижня
+TOP = ["Volkswagen", "Toyota", "Skoda", "Renault", "Ford", "BMW", "Audi", "Mercedes-Benz", "Hyundai",
+       "Kia", "Nissan", "Chevrolet", "Opel", "Mitsubishi", "Honda", "Mazda", "Peugeot", "Citroen",
+       "Daewoo", "ВАЗ / Lada", "ЗАЗ", "Tesla", "Lexus", "Subaru", "Volvo", "Fiat", "Dacia", "Suzuki",
+       "Land Rover", "Jeep", "Infiniti", "Chery", "Geely", "BYD", "Seat", "Porsche", "MG", "Iveco",
+       "MAN", "DAF", "Scania"]
+
+
+def now_iso():
+    return datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+
+def load(path, default):
+    try:
+        return json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return default
+
+
+def save(path, obj, pretty=False):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=1 if pretty else None, separators=None if pretty else (",", ":"))
+    os.replace(tmp, path)
+
+
+class Limit(Exception):
+    pass
+
+
+def get(path, key):
+    url = f"{API}{path}{'&' if '?' in path else '?'}api_key={key}"
+    req = urllib.request.Request(url, headers={"User-Agent": "oblik-avto-catalog/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            raise Limit("429")
+        if e.code in (400, 404):
+            return None  # немає даних — завдання вважаємо виконаним
+        raise
+
+
+def upsert(table, key, data, today):
+    """Додати або оновити запис, нічого не видаляючи."""
+    key = str(key)
+    cur = table.get(key)
+    if cur is None:
+        cur = dict(data, first=today, seen=today)
+        table[key] = cur
+        return True
+    cur.update({k: v for k, v in data.items() if v not in (None, "")})
+    cur["seen"] = today
+    return False
+
+
+def main():
+    key = os.environ.get("RIA_KEY", "").strip()
+    if not key:
+        print("RIA_KEY не задано — довідник пропущено")
+        return
+    today = now_iso()
+    month = today[:7]
+    db = load(DB, {"marks": {}, "models": {}, "gens": {}, "mods": {}})
+    st = load(STATE, {})
+    if st.get("month") != month:
+        st["month"], st["used"] = month, 0
+    st.setdefault("queue", [])
+    st.setdefault("done", [])        # виконані завдання початкового наповнення (щоб не повторювати)
+    st.setdefault("weekly", "")
+    q, done = st["queue"], set(st["done"])
+
+    def push(task, front=False):
+        t = list(task)
+        if t in q:
+            return
+        if front:
+            q.insert(0, t)
+        else:
+            q.append(t)
+
+    # початкова черга
+    if not q and not done:
+        for c in CATS:
+            push(["marks", c])
+        st["weekly"] = "%d-%02d" % datetime.date.today().isocalendar()[:2]  # перший тиждень — і так усе свіже
+
+    # щотижня (понеділок): марки всіх категорій + моделі популярних марок — на початок черги
+    wk = datetime.date.today().isocalendar()
+    wk = f"{wk[0]}-{wk[1]:02d}"
+    weekly_due = st["weekly"] != wk
+    if weekly_due:
+        refresh = [["marks", c, "w"] for c in CATS[:3]]
+        top_ids = {m["n"]: m["id"] for m in db["marks"].values() if m.get("cat") == 1}
+        refresh += [["models", 1, int(top_ids[n]), "w"] for n in TOP if n in top_ids]
+        for t in reversed(refresh):
+            push(t, front=True)
+        st["weekly"] = wk
+
+    n_run, added, errs = 0, 0, []
+    while q and n_run < RUN_MAX and st["used"] < MONTH_MAX:
+        t = q[0]
+        weekly = t[-1] == "w"
+        if not weekly and st["used"] >= CRAWL_MAX:
+            break  # бюджет наповнення на місяць вичерпано — лишаємо запас на щотижневе оновлення
+        kind = t[0]
+        try:
+            if kind == "marks":
+                cat = t[1]
+                res = get(f"/auto/categories/{cat}/marks", key) or []
+                for m in res:
+                    if upsert(db["marks"], f"{cat}:{m['value']}", {"id": m["value"], "n": m["name"], "cat": cat}, today):
+                        added += 1
+                    tk = ["models", cat, m["value"]]
+                    if json.dumps(tk) not in done:
+                        # популярні легкові — вперед, решта — після них
+                        if cat == 1 and m["name"] in TOP:
+                            push(tk, front=False)
+                        else:
+                            st.setdefault("later", [])
+                            if tk not in st["later"]:
+                                st["later"].append(tk)
+            elif kind == "models":
+                cat, mark = t[1], t[2]
+                res = get(f"/auto/categories/{cat}/marks/{mark}/models", key) or []
+                for m in res:
+                    if upsert(db["models"], m["value"], {"n": m["name"], "mk": mark, "cat": cat}, today):
+                        added += 1
+                    tk = ["gens", m["value"]]
+                    if json.dumps(tk) not in done:
+                        push(tk)
+            elif kind == "gens":
+                model = t[1]
+                res = get(f"/generations/by/models/{model}/generations", key) or []
+                for blk in res if isinstance(res, list) else []:
+                    for g in blk.get("generations", []):
+                        gid = g.get("generationId")
+                        if gid is None:
+                            continue
+                        if upsert(db["gens"], gid, {"n": g.get("name", ""), "md": model,
+                                                    "y1": g.get("yearFrom"), "y2": g.get("yearTo"),
+                                                    "eng": g.get("eng", "")}, today):
+                            added += 1
+                        tk = ["mods", gid]
+                        if json.dumps(tk) not in done:
+                            push(tk)
+            elif kind == "mods":
+                gen = t[1]
+                res = get(f"/modifications/by/generation/{gen}/modifications", key) or []
+                for m in res if isinstance(res, list) else []:
+                    if upsert(db["mods"], m["value"], {"n": m["name"], "g": gen}, today):
+                        added += 1
+        except Limit:
+            errs.append("429: ліміт AUTO.RIA — продовжимо пізніше")
+            break
+        except Exception as e:  # мережа тощо — спробуємо наступного разу
+            errs.append(f"{t}: {e}")
+            q.append(q.pop(0))
+            n_run += 1
+            st["used"] += 1
+            continue
+        q.pop(0)
+        if not weekly:
+            done.add(json.dumps(t))
+        n_run += 1
+        st["used"] += 1
+        if not q and st.get("later"):
+            q.extend(st.pop("later"))
+        time.sleep(1.2)
+
+    st["done"] = sorted(done)
+    st["left"] = len(q) + len(st.get("later", []))
+    save(DB, db)
+    save(STATE, st, pretty=True)
+    export(db, today)
+    msg = (f"{datetime.datetime.utcnow():%Y-%m-%d %H:%M} UTC · запитів {n_run}, за місяць {st['used']}, "
+           f"нових записів {added}, у черзі {st['left']}; марок {len(db['marks'])}, моделей {len(db['models'])}, "
+           f"поколінь {len(db['gens'])}, модифікацій {len(db['mods'])}")
+    print(msg)
+    open(f"{DIR}/log.txt", "w", encoding="utf-8").write(msg + "\n" + "\n".join(errs[:5]) + "\n")
+
+
+def export(db, today):
+    """Файли для застосунку: список марок і по файлу на марку."""
+    marks = [{"id": int(v["id"]), "n": v["n"], "cat": v.get("cat", 1)} for v in db["marks"].values()]
+    marks.sort(key=lambda m: (m["cat"], m["n"].lower()))
+    by_model = {}
+    for gid, g in db["gens"].items():
+        by_model.setdefault(str(g["md"]), []).append((gid, g))
+    by_gen = {}
+    for mid, m in db["mods"].items():
+        by_gen.setdefault(str(m["g"]), []).append({"id": int(mid), "n": m["n"]})
+    by_mark = {}
+    for mid, m in db["models"].items():
+        gens = []
+        for gid, g in sorted(by_model.get(mid, []), key=lambda x: (x[1].get("y1") or 0)):
+            gens.append({"id": int(gid), "n": g["n"], "y1": g.get("y1"), "y2": g.get("y2"),
+                         "mods": sorted(by_gen.get(gid, []), key=lambda x: x["n"])})
+        by_mark.setdefault(str(m["mk"]), []).append({"id": int(mid), "n": m["n"], "cat": m.get("cat", 1), "gens": gens})
+    for mk, models in by_mark.items():
+        models.sort(key=lambda x: x["n"].lower())
+        save(f"{DIR}/m/{mk}.json", {"src": "AUTO.RIA", "url": "https://auto.ria.com", "updated": today,
+                                    "mark": next((v["n"] for v in db["marks"].values() if str(v["id"]) == mk), ""),
+                                    "models": models})
+    for m in marks:
+        m["has"] = str(m["id"]) in by_mark
+    save(f"{DIR}/marks.json", {"src": "AUTO.RIA", "url": "https://auto.ria.com", "updated": today, "marks": marks})
+
+
+if __name__ == "__main__":
+    main()
