@@ -96,15 +96,18 @@ def urgent(s, url):
 def main():
     start = time.time()
     s, url = fs()
-    last_now = 0
+    last_now = last_chk = 0
     while time.time() - start < LIFE:
         now = utc()
-        if urgent(s, url) and time.time() - last_now > 240 and not busy("ria-now.yml"):
+        # кнопку перевіряємо кожні 15 с (це лише читання Firestore), розклад — раз на хвилину
+        if urgent(s, url) and time.time() - last_now > 120 and not busy("ria-now.yml"):
             dispatch("ria-now.yml", "кнопка «Завантажити зараз»")
             last_now = time.time()
-        check("ria.yml", RIA_SLOTS, now)
-        check("weather.yml", WX_SLOTS, now)
-        time.sleep(60)
+        if time.time() - last_chk >= 60:
+            check("ria.yml", RIA_SLOTS, now)
+            check("weather.yml", WX_SLOTS, now)
+            last_chk = time.time()
+        time.sleep(15)
     dispatch("bot.yml", "наступна зміна")
 
 
