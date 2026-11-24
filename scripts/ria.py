@@ -395,6 +395,9 @@ def main():
         orig = [t for t in q if t not in pri]
         q[:] = [t for t in pri]
         run_max = max(0, min(URG_MAX, HOUR_MAX - len(st["hour"])))
+        if run_max == 0:
+            print("Годинний ліміт AUTO.RIA вичерпано — позачерговий запит виконаємо, щойно звільниться")
+            return
     else:    # звичайне наповнення не чіпає годинний запас для кнопки «Завантажити зараз»
         run_max = max(0, min(RUN_MAX, HOUR_MAX - RESERVE - len(st["hour"])))
     prices = load(f"{DIR}/prices.json", {"src": "AUTO.RIA", "url": "https://auto.ria.com", "cars": {}})
