@@ -1,0 +1,12 @@
+name: ria test
+on:
+  push:
+    paths: [scripts/ria_test.py]
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/ria_test.py
+        env:
+          RIA_KEY: ${{ secrets.RIA_KEY }}
