@@ -288,8 +288,8 @@ def main():
 
     # авто користувачів — першими в черзі
     st.setdefault("req", {})
-    if st.get("pv") != 2:  # нові поля в цінах (розподіл, id для посилання) — перерахувати
-        st["price"], st["pv"] = {}, 2
+    if st.get("pv") != 3:  # нові поля в цінах (розподіл, id для посилання) — перерахувати
+        st["price"], st["pv"] = {}, 3
     reqs = fs_requests()
     have = {x["id"] for x in reqs}
     reqs += [x for x in fs_backups() if x["id"] not in have]  # авто, які вже внесли в застосунок раніше
@@ -410,7 +410,9 @@ def main():
                     y = int(r["y"])
                     res, span = None, 0
                     for span in (0, 1):  # спершу точний рік; якщо оголошень мало — ±1 рік
-                        qs = f"/auto/average_price?main_category={r.get('cat', 1)}&marka_id={r['mark']}&model_id={r['model']}&yers={y - span}&yers={y + span}"
+                        # без main_category: модель і так однозначна, а одна й та сама модель (напр. VW LT) продається
+                        # і як легкова, і як вантажна, і як автобус — категорія відсікала більшість оголошень
+                        qs = f"/auto/average_price?marka_id={r['mark']}&model_id={r['model']}&yers={y - span}&yers={y + span}"
                         fu = FUEL_RIA.get("ev" if r.get("vt") == "ev" else r.get("f", ""), [])
                         qs += "".join(f"&fuel_id={x}" for x in fu)
                         res = get(qs, key)
