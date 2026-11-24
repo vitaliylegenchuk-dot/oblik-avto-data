@@ -562,7 +562,9 @@ def main():
     save(DB, db)
     save(STATE, st, pretty=True)
     try:  # курс НБУ — щоб показати ціну й у гривнях (це не AUTO.RIA, ліміт не витрачає)
-        with urllib.request.urlopen("https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json", timeout=20) as rr:
+        # курс саме на сьогодні (за Києвом): без дати НБУ після обіду віддає вже встановлений курс на завтра
+        kyiv = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)
+        with urllib.request.urlopen(f"https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&date={kyiv:%Y%m%d}&json", timeout=20) as rr:
             nb = json.loads(rr.read().decode("utf-8"))[0]
             prices["usd"] = {"rate": nb["rate"], "date": nb.get("exchangedate", "")}
     except Exception as e:
