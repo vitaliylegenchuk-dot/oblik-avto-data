@@ -504,7 +504,7 @@ def main():
                         pc_.update({"n": r["n"], "y": y, "upd": today, "total": res.get("total"),
                                     "mean": round(res.get("arithmeticMean") or 0), "iq": round(res.get("interQuartileMean") or 0),
                                     "p25": val("25.0"), "p50": val("50.0"), "p75": val("75.0"), "years": [y - span, y + span], "none": False,
-                                    "mk": r["mark"], "md": r["model"], "cat": r.get("cat", 1), "fu": fu, "bins": bins})
+                                    "mk": r["mark"], "md": r["model"], "cat": r.get("cat", 1), "fu": fu, "bins": bins, "f": r.get("f", "")})
                         if not pc_["hist"] or pc_["hist"][-1][0] != today:
                             pc_["hist"].append([today, pc_["p50"] or pc_["iq"]])  # історія — щоб показати, як дешевшає авто
                     else:
