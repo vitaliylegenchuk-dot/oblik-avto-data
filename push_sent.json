@@ -2,6 +2,7 @@
 "bila-tserkva:snow:2026-11-24T04",
 "cherkasy:ice:2026-11-24T02",
 "cherkasy:snow:2026-11-24T07",
+"cherkasy:snow:2026-11-24T18",
 "chernihiv:ice:2026-11-24T16",
 "chernivtsi:wind:2026-11-24T15",
 "dnipro:wind:2026-11-24T01",
@@ -11,12 +12,16 @@
 "kropyvnytskyi:ice:2026-11-24T03",
 "kyiv:ice:2026-11-24T20",
 "kyiv:snow:2026-11-24T03",
+"kyiv:snow:2026-11-24T11",
 "lutsk:snow:2026-11-24T03",
 "lviv:snow:2026-11-24T01",
+"lviv:snow:2026-11-24T09",
 "odesa:wind:2026-11-24T10",
 "poltava:ice:2026-11-24T06",
 "poltava:snow:2026-11-24T01",
+"poltava:snow:2026-11-24T16",
 "rivne:snow:2026-11-24T00",
+"rivne:snow:2026-11-24T09",
 "sumy:ice:2026-11-24T07",
 "ternopil:ice:2026-11-24T02",
 "ternopil:snow:2026-11-24T11",
@@ -25,5 +30,6 @@
 "vinnytsia:snow:2026-11-24T02",
 "zaporizhzhia:wind:2026-11-24T02",
 "zhytomyr:ice:2026-11-24T21",
-"zhytomyr:snow:2026-11-24T00"
+"zhytomyr:snow:2026-11-24T00",
+"zhytomyr:snow:2026-11-24T09"
 ]
