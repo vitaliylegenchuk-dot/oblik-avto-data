@@ -1,0 +1,26 @@
+name: Диспетчер
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7,37 * * * *"   # запасний перезапуск, якщо ланцюжок обірвався (зайвий просто чекає в черзі)
+  push:
+    paths: ["scripts/bot.py", ".github/workflows/bot.yml"]
+permissions:
+  actions: write
+  contents: read
+concurrency:
+  group: bot
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Диспетчер
+        env: { GH_TOKEN: "${{ github.token }}", FCM_SA: "${{ secrets.FCM_SA }}" }
+        run: |
+          pip install -q google-auth requests
+          python scripts/bot.py
