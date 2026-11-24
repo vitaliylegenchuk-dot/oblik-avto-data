@@ -225,6 +225,8 @@ def main():
 
     # авто користувачів — першими в черзі
     st.setdefault("req", {})
+    if st.get("pv") != 2:  # нові поля в цінах (розподіл, id для посилання) — перерахувати
+        st["price"], st["pv"] = {}, 2
     reqs = fs_requests()
     for rq in reqs:
         r = st["req"].setdefault(rq["id"], {"n": rq["n"], "vt": rq["vt"], "ok": False})
@@ -357,9 +359,25 @@ def main():
                     if res and res.get("total"):
                         pc = res.get("percentiles", {}) or {}
                         val = lambda k: round(pc.get(k) or pc.get(str(float(k))) or 0)
+                        # розподіл цін (без крайніх 5% з кожного боку): 10 стовпчиків
+                        bins = None
+                        pr = [p for p in (res.get("prices") or []) if isinstance(p, (int, float)) and p > 0]
+                        lo, hi = val("5.0"), val("95.0")
+                        if pr and hi > lo:
+                            n = [0] * 10
+                            below = above = 0
+                            for v in pr:
+                                if v < lo:
+                                    below += 1
+                                elif v > hi:
+                                    above += 1
+                                else:
+                                    n[min(9, int((v - lo) / (hi - lo) * 10))] += 1
+                            bins = {"lo": lo, "hi": hi, "n": n, "below": below, "above": above}
                         pc_.update({"n": r["n"], "y": y, "upd": today, "total": res.get("total"),
                                     "mean": round(res.get("arithmeticMean") or 0), "iq": round(res.get("interQuartileMean") or 0),
-                                    "p25": val("25.0"), "p50": val("50.0"), "p75": val("75.0"), "years": [y - span, y + span], "none": False})
+                                    "p25": val("25.0"), "p50": val("50.0"), "p75": val("75.0"), "years": [y - span, y + span], "none": False,
+                                    "mk": r["mark"], "md": r["model"], "cat": r.get("cat", 1), "fu": fu, "bins": bins})
                         if not pc_["hist"] or pc_["hist"][-1][0] != today:
                             pc_["hist"].append([today, pc_["p50"] or pc_["iq"]])  # історія — щоб показати, як дешевшає авто
                     else:
@@ -400,6 +418,12 @@ def main():
     st["left"] = len(q) + len(st.get("later", []))
     save(DB, db)
     save(STATE, st, pretty=True)
+    try:  # курс НБУ — щоб показати ціну й у гривнях (це не AUTO.RIA, ліміт не витрачає)
+        with urllib.request.urlopen("https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json", timeout=20) as rr:
+            nb = json.loads(rr.read().decode("utf-8"))[0]
+            prices["usd"] = {"rate": nb["rate"], "date": nb.get("exchangedate", "")}
+    except Exception as e:
+        errs.append(f"НБУ: {e}")
     save(f"{DIR}/prices.json", dict(prices, updated=today), pretty=True)
     export(db, today)
     msg = (f"{datetime.datetime.utcnow():%Y-%m-%d %H:%M} UTC · запитів {n_run}, за місяць {st['used']}, "
