@@ -106,30 +106,47 @@ def fs_requests():
         return []
 
 
+ALIAS = {"vw": "volkswagen", "фольксваген": "volkswagen", "мерседес": "mercedes benz", "mercedes": "mercedes benz",
+         "мерс": "mercedes benz", "шкода": "skoda", "тойота": "toyota", "форд": "ford", "рено": "renault",
+         "опель": "opel", "ауді": "audi", "бмв": "bmw", "хюндай": "hyundai", "хендай": "hyundai", "кіа": "kia",
+         "ніссан": "nissan", "шевроле": "chevrolet", "мітсубісі": "mitsubishi", "хонда": "honda", "мазда": "mazda",
+         "пежо": "peugeot", "сітроен": "citroen", "деу": "daewoo", "лада": "ваз lada", "ваз": "ваз lada",
+         "лексус": "lexus", "субару": "subaru", "вольво": "volvo", "фіат": "fiat", "сузукі": "suzuki", "тесла": "tesla"}
+
+
 def resolve(db, name, vt):
-    """«Ford Fusion» → (марка, модель) за довідником. Повертає (mark, model, cats)."""
+    """«Ford Fusion», «Vw Lt35» → (марка, модель) за довідником. Повертає (mark, model_id, cats)."""
     w = norm(name)
+    if w and w[0] in ALIAS:
+        w = ALIAS[w[0]].split() + w[1:]
     cats = VT_CAT.get(vt, [1])
-    best = None
+    order = cats + [c for c in (1, 6, 7, 2, 8, 5, 4) if c not in cats]
+    found = []  # (пріоритет категорії, марка, довжина збігу)
     for m in db["marks"].values():
-        if m.get("cat") not in cats:
+        if m.get("cat") not in order:
             continue
         for alt in m["n"].split(" / "):
             a = norm(alt)
-            if a and w[:len(a)] == a and (best is None or len(a) > best[1] or (len(a) == best[1] and cats.index(m["cat"]) < cats.index(best[0]["cat"]))):
-                best = (m, len(a))
-    if not best:
+            if a and w[:len(a)] == a:
+                found.append((order.index(m["cat"]), m, len(a)))
+    if not found:
         return None, None, cats
-    mark, k = best
-    rest = w[k:]
-    mdl = None
-    for mid, md in db["models"].items():
-        if md.get("mk") != mark["id"] or md.get("cat") != mark["cat"]:
-            continue
-        a = norm(md["n"])
-        if a and rest[:len(a)] == a and (mdl is None or len(a) > mdl[1]):
-            mdl = (mid, len(a))
-    return mark, (mdl[0] if mdl else None), cats
+    found.sort(key=lambda x: (-x[2], x[0]))
+    best_k = found[0][2]
+    rest = "".join(w[best_k:])
+    first = None
+    for _, mark, k in [f for f in found if f[2] == best_k]:
+        models = [(mid, md) for mid, md in db["models"].items() if md.get("mk") == mark["id"] and md.get("cat") == mark["cat"]]
+        if first is None:
+            first = (mark, models)
+        exact = [mid for mid, md in models if "".join(norm(md["n"])) == rest]
+        if exact:
+            return mark, exact[0], cats
+        pref = sorted(((len("".join(norm(md["n"]))), mid) for mid, md in models
+                       if rest.startswith("".join(norm(md["n"]))) and norm(md["n"])), reverse=True)
+        if pref:
+            return mark, pref[0][1], cats
+    return first[0], None, cats
 
 
 class Limit(Exception):
@@ -228,7 +245,14 @@ def main():
             pri.append(["models", mark["cat"], mark["id"], "r"]); r["why"] = "чекаємо моделі марки"
             continue
         if not mid:
-            r["why"] = "моделі не знайдено"
+            # модель може бути в іншій категорії (вантажні, автобуси) — довантажити моделі цієї марки там
+            more = [["models", m2["cat"], m2["id"], "r"] for m2 in db["marks"].values()
+                    if m2["id"] == mark["id"] and m2["cat"] in (1, 6, 7)
+                    and json.dumps(["models", m2["cat"], m2["id"]]) not in done]
+            if more:
+                pri += more; r["why"] = "шукаємо модель в інших категоріях"
+            else:
+                r["why"] = "моделі не знайдено"
             continue
         r["model"], r["mark"], r["cat"] = int(mid), mark["id"], mark["cat"]
         pd = st.setdefault("price", {}).get(rid, "")
