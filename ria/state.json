@@ -3,6 +3,11 @@
  "used": 131,
  "queue": [
   [
+   "price",
+   "ford_fusion_2013_дизель",
+   "r"
+  ],
+  [
    "gens",
    3457
   ],
@@ -32352,7 +32357,7 @@
    5733
   ]
  ],
- "left": 6996,
+ "left": 6997,
  "req": {
   "ford_fusion_2013_а_95": {
    "n": "Ford Fusion",
@@ -32452,46 +32457,46 @@
   "toyota_camry_2018": {
    "n": "Toyota Camry",
    "vt": "car",
-   "ok": false,
+   "ok": true,
    "y": "2018",
    "f": "",
    "model": 698,
    "mark": 79,
    "cat": 1,
-   "why": "чекаємо модифікації"
+   "why": ""
   },
   "renault_master_2017_дизель": {
    "n": "Renault Master",
    "vt": "car",
-   "ok": false,
+   "ok": true,
    "y": "2017",
    "f": "Дизель",
    "model": 46833,
    "mark": 62,
    "cat": 1,
-   "why": "чекаємо покоління"
+   "why": ""
   },
   "mercedes_sprinter_316_2015_дизель": {
    "n": "Mercedes Sprinter 316",
    "vt": "car",
-   "ok": false,
+   "ok": true,
    "y": "2015",
    "f": "Дизель",
    "model": 35249,
    "mark": 48,
    "cat": 1,
-   "why": "чекаємо покоління"
+   "why": ""
   },
   "ford_transit_2019_дизель": {
    "n": "Ford Transit",
    "vt": "car",
-   "ok": false,
+   "ok": true,
    "y": "2019",
    "f": "Дизель",
    "model": 35396,
    "mark": 24,
    "cat": 1,
-   "why": "чекаємо покоління"
+   "why": ""
   },
   "ford_edge_2014": {
    "n": "Ford Edge",
@@ -32522,6 +32527,17 @@
    "y": "",
    "f": "Газ і бензин",
    "why": "марки немає в довіднику"
+  },
+  "ford_fusion_2013_дизель": {
+   "n": "Ford Fusion",
+   "vt": "car",
+   "ok": true,
+   "y": "2013",
+   "f": "Дизель",
+   "model": 241,
+   "mark": 24,
+   "cat": 1,
+   "why": ""
   }
  },
  "hour": [
