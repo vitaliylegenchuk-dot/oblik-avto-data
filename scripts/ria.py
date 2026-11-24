@@ -19,6 +19,7 @@
 import datetime
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -103,6 +104,68 @@ def fs_requests():
         return out
     except Exception as e:
         print("riaReq помилка:", e, file=sys.stderr)
+        return []
+
+
+def _slug(x):
+    return re.sub(r"[^0-9a-zа-яіїєґ]+", "_", str(x or "").lower()).strip("_")
+
+
+def _rid(c):
+    n = str(c.get("name") or "").strip()
+    if len(n) < 2:
+        return ""
+    y, f = str(c.get("year") or "")[:4], c.get("fuel") or ""
+    return (_slug(n) + ("_" + y if y else "") + ("_" + _slug(f) if f else ""))[:80]
+
+
+def fs_backups():
+    """Авто, які вже внесені в застосунок: беремо з резервних копій користувачів (users/*/backup)
+    лише назву, рік, паливо й вид транспорту — нічого іншого не зберігаємо."""
+    sa = os.environ.get("FCM_SA", "").strip()
+    if not sa:
+        return []
+    try:
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import AuthorizedSession
+        info = json.loads(sa)
+        cred = service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/datastore"])
+        s = AuthorizedSession(cred)
+        url = f"https://firestore.googleapis.com/v1/projects/{info['project_id']}/databases/(default)/documents:runQuery"
+        r = s.post(url, json={"structuredQuery": {"from": [{"collectionId": "backup", "allDescendants": True}]}}, timeout=60)
+        if r.status_code != 200:
+            print("backup:", r.status_code, r.text[:200], file=sys.stderr)
+            return []
+        parts = {}
+        for row in r.json():
+            d = row.get("document")
+            if not d:
+                continue
+            path, f = d["name"], d.get("fields", {})
+            user, doc = path.rsplit("/backup/", 1)
+            if doc.startswith("p") and doc[1:].isdigit():
+                parts.setdefault(user, {})[int(doc[1:])] = f.get("d", {}).get("stringValue", "")
+        out, seen = [], set()
+        for user, ps in parts.items():
+            try:
+                o = json.loads("".join(ps[i] for i in sorted(ps)))
+                stt = json.loads(o.get("zoshyt-vodiia-v1") or "{}")
+            except Exception:
+                continue
+            cars = [stt.get("car") or {}] + [(g or {}).get("car") or {} for g in stt.get("garage") or []]
+            for c in cars:
+                if not isinstance(c, dict) or c.get("draft"):
+                    continue
+                rid = _rid(c)
+                if not rid or rid in seen:
+                    continue
+                seen.add(rid)
+                vt = c.get("vt") or "car"
+                out.append({"id": rid, "n": re.sub(r"\s+", " ", str(c["name"]).strip())[:60], "vt": str(vt)[:12],
+                            "y": str(c.get("year") or "")[:4], "f": str(c.get("fuel") or "")[:12]})
+        return out
+    except Exception as e:
+        print("backup помилка:", e, file=sys.stderr)
         return []
 
 
@@ -228,6 +291,8 @@ def main():
     if st.get("pv") != 2:  # нові поля в цінах (розподіл, id для посилання) — перерахувати
         st["price"], st["pv"] = {}, 2
     reqs = fs_requests()
+    have = {x["id"] for x in reqs}
+    reqs += [x for x in fs_backups() if x["id"] not in have]  # авто, які вже внесли в застосунок раніше
     for rq in reqs:
         r = st["req"].setdefault(rq["id"], {"n": rq["n"], "vt": rq["vt"], "ok": False})
         r["n"], r["vt"], r["y"], r["f"] = rq["n"], rq["vt"], rq.get("y", ""), rq.get("f", "")
