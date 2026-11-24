@@ -2,7 +2,9 @@
 
 Читає weather.json і для кожного міста надсилає ОДНЕ повідомлення про нові небезпеки (рівень 2+),
 які почнуться протягом найближчих 12 годин. Тиха година 22:00–07:00 (Київ): нічого не надсилаємо,
-усе накопичене піде першим ранковим запуском. Вже надіслані ключі — у push_sent.json.
+усе накопичене піде першим ранковим запуском. Вже надіслані хвилі — у push_sent.json
+(ключ місто:явище:ДАТАTГОДИНА). Нова хвиля того ж явища (початок більш ніж через 8 год після
+попередньої) надсилається окремо, навіть у той самий день.
 Ключ сервісного акаунта Firebase береться з секрету FCM_SA (вміст JSON-файлу).
 """
 import datetime
@@ -12,6 +14,12 @@ import sys
 from zoneinfo import ZoneInfo
 
 SENT = "push_sent.json"
+GAP_H = 8  # хвилі ближче за 8 год вважаємо однією
+
+
+def _t(key):
+    d = key.split(":", 2)[2]
+    return datetime.datetime.fromisoformat(d[:13] + ":00" if len(d) > 10 else d + "T00:00")
 
 
 def main():
@@ -35,7 +43,7 @@ def main():
             sent = json.load(open(SENT, encoding="utf-8"))
         except Exception:
             sent = []
-    sent = [k for k in sent if k[-10:] >= today]
+    sent = [k for k in sent if k.split(":", 2)[2][:10] >= today]
     seen = set(sent)
 
     d = json.load(open("weather.json", encoding="utf-8"))
@@ -56,9 +64,10 @@ def main():
                 continue
             if start > horizon:
                 continue  # ще далеко — надішлемо пізніше, коли стане актуально
-            key = f"{p['id']}:{z['k']}:{frm[:10]}"
-            if key not in seen:
-                fresh.append((z, key))
+            pre = f"{p['id']}:{z['k']}:"
+            if any(k.startswith(pre) and abs((_t(k) - start).total_seconds()) < GAP_H * 3600 for k in seen):
+                continue  # цю хвилю вже надсилали
+            fresh.append((z, pre + frm[:13]))
         if not fresh:
             continue
         fresh.sort(key=lambda zk: (-zk[0].get("lvl", 0), zk[0].get("from", "")))
@@ -70,7 +79,7 @@ def main():
         msg = {"message": {
             "topic": "wx_" + p["id"],
             "data": {"type": "wx", "place": p["id"], "n": p.get("n", ""),
-                     "k": "+".join(zk[0]["k"] for zk in fresh), "keys": ",".join(keys),
+                     "k": "+".join(zk[0]["k"] for zk in fresh), "keys": ",".join(keys + [k[:-3] for k in keys]),
                      "fr": first.get("from", ""), "t": title, "x": top.get("x", ""),
                      "when": first.get("when", "")},
             "android": {"priority": "high", "ttl": "21600s"},
