@@ -1,0 +1,31 @@
+name: AUTO.RIA позачергово
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # перевірка кнопки «Завантажити зараз» (якщо запитів немає — нічого не робить)
+  workflow_dispatch:
+  push:
+    paths: ["ria/now-kick"]
+permissions:
+  contents: write
+concurrency: ria
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Оновити довідник
+        env: { RIA_KEY: "${{ secrets.RIA_KEY }}", FCM_SA: "${{ secrets.FCM_SA }}" }
+        run: |
+          pip install -q google-auth requests
+          RIA_MODE=now python scripts/ria.py
+      - name: Зберегти
+        run: |
+          git config user.name "catalog-bot"
+          git config user.email "catalog-bot@users.noreply.github.com"
+          [ -d ria ] || exit 0
+          git add -A -- ria
+          git diff --cached --quiet && exit 0
+          git commit -m "AUTO.RIA позачергово: $(date -u +'%Y-%m-%d %H:%M') UTC"
+          for i in 1 2 3; do git pull --rebase --autostash -q && git push && break; sleep 5; done

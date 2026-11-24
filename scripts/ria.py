@@ -23,6 +23,7 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 API = "https://developers.ria.com"
@@ -31,6 +32,9 @@ DB = f"{DIR}/db.json"
 STATE = f"{DIR}/state.json"
 RUN_MAX = 24            # запитів за один запуск
 HOUR_MAX = 27           # ліміт AUTO.RIA — 30 за будь-які 60 хвилин; рахуємо самі, з запасом
+RESERVE = 5             # з них стільки щогодини лишаємо вільними для кнопки «Завантажити зараз» у застосунку
+URG_MAX = 8             # не більше стільки запитів за один позачерговий запуск
+URG = os.environ.get("RIA_MODE") == "now"   # позачерговий запуск: лише авто, для яких натиснули кнопку
 PRICE_DAYS = 7          # середню ціну авто користувача оновлюємо раз на тиждень
 # пальне застосунку → типи пального AUTO.RIA (1 бензин, 2 дизель, 3 газ, 4 газ/бензин, 6 електро, 9 пропан-бутан)
 FUEL_RIA = {"Дизель": [2], "А-95": [1], "А-92": [1], "А-100": [1], "Газ": [3, 4, 9], "Газ і бензин": [4, 9], "ev": [6]}
@@ -117,6 +121,23 @@ def _rid(c):
         return ""
     y, f = str(c.get("year") or "")[:4], c.get("fuel") or ""
     return (_slug(n) + ("_" + y if y else "") + ("_" + _slug(f) if f else ""))[:80]
+
+
+def fs_delete(ids):
+    """Прибрати оброблені позачергові запити (сервісний акаунт; клієнтам видаляти заборонено)."""
+    sa = os.environ.get("FCM_SA", "").strip()
+    if not sa or not ids:
+        return
+    try:
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import AuthorizedSession
+        info = json.loads(sa)
+        cred = service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/datastore"])
+        s = AuthorizedSession(cred)
+        for i in ids:
+            s.delete(f"https://firestore.googleapis.com/v1/projects/{info['project_id']}/databases/(default)/documents/riaReq/{urllib.parse.quote(i)}", timeout=30)
+    except Exception as e:
+        print("riaReq видалення:", e, file=sys.stderr)
 
 
 def fs_backups():
@@ -291,26 +312,46 @@ def main():
     if st.get("pv") != 3:  # нові поля в цінах (розподіл, id для посилання) — перерахувати
         st["price"], st["pv"] = {}, 3
     reqs = fs_requests()
-    have = {x["id"] for x in reqs}
-    reqs += [x for x in fs_backups() if x["id"] not in have]  # авто, які вже внесли в застосунок раніше
+    # «now_<id>» — користувач натиснув «Завантажити зараз»: це те саме авто, але позачергово
+    urg = {x["id"][4:]: x["id"] for x in reqs if x["id"].startswith("now_") and len(x["id"]) > 4}
+    plain = {x["id"] for x in reqs if not x["id"].startswith("now_")}
+    reqs = [x for x in reqs if not x["id"].startswith("now_")] + \
+           [dict(x, id=x["id"][4:]) for x in reqs if x["id"][4:] in urg and x["id"].startswith("now_") and x["id"][4:] not in plain]
+    if URG:
+        if not urg:
+            print("Позачергових запитів немає")
+            return
+    else:
+        have = {x["id"] for x in reqs}
+        reqs += [x for x in fs_backups() if x["id"] not in have]  # авто, які вже внесли в застосунок раніше
     for rq in reqs:
         r = st["req"].setdefault(rq["id"], {"n": rq["n"], "vt": rq["vt"], "ok": False})
         r["n"], r["vt"], r["y"], r["f"] = rq["n"], rq["vt"], rq.get("y", ""), rq.get("f", "")
-    pri = []
-    for rid, r in st["req"].items():
+    def gens_for(mid, y):
+        """Покоління моделі; якщо відомий рік — лише ті, що його охоплюють (решту модифікацій не тягнемо)."""
+        gl = [gid for gid, g in db["gens"].items() if str(g.get("md")) == str(mid)]
+        if y and str(y).isdigit():
+            yy = int(y)
+            fit = [gid for gid in gl if (db["gens"][gid].get("y1") or 0) <= yy <= (db["gens"][gid].get("y2") or 9999)]
+            return fit or gl
+        return gl
+
+    def plan(rid, r):
+        """Що ще треба завантажити для авто користувача (і оновлює його статус)."""
+        pri = []
         if r.get("ok"):
             pd = st.setdefault("price", {}).get(rid, "")
             if r.get("y") and r.get("model") and (not pd or (datetime.date.fromisoformat(today) - datetime.date.fromisoformat(pd)).days >= PRICE_DAYS):
                 pri.append(["price", rid, "r"])
-            continue
+            return pri
         mark, mid, _ = resolve(db, r["n"], r["vt"])
         if not mark:
             r["why"] = "марки немає в довіднику"
-            continue
+            return pri
         mk_models = [x for x in db["models"].values() if x.get("mk") == mark["id"] and x.get("cat") == mark["cat"]]
         if not mk_models:
             pri.append(["models", mark["cat"], mark["id"], "r"]); r["why"] = "чекаємо моделі марки"
-            continue
+            return pri
         if not mid:
             # модель може бути в іншій категорії (вантажні, автобуси) — довантажити моделі цієї марки там
             more = [["models", m2["cat"], m2["id"], "r"] for m2 in db["marks"].values()
@@ -320,20 +361,27 @@ def main():
                 pri += more; r["why"] = "шукаємо модель в інших категоріях"
             else:
                 r["why"] = "моделі не знайдено"
-            continue
+            return pri
         r["model"], r["mark"], r["cat"] = int(mid), mark["id"], mark["cat"]
         pd = st.setdefault("price", {}).get(rid, "")
         if r.get("y") and (not pd or (datetime.date.fromisoformat(today) - datetime.date.fromisoformat(pd)).days >= PRICE_DAYS):
             pri.append(["price", rid, "r"])
         if json.dumps(["gens", int(mid)]) not in done:
             pri.append(["gens", int(mid), "r"]); r["why"] = "чекаємо покоління"
-            continue
-        gens = [gid for gid, g in db["gens"].items() if str(g.get("md")) == str(mid)]
+            return pri
+        gens = gens_for(mid, r.get("y"))
         need = [["mods", int(g), "r"] for g in gens if json.dumps(["mods", int(g)]) not in done]
         if need:
             pri += need; r["why"] = "чекаємо модифікації"
-            continue
+            return pri
         r["ok"], r["why"] = True, ""
+        return pri
+
+    pri = []
+    for rid, r in st["req"].items():
+        if URG and rid not in urg:
+            continue
+        pri += plan(rid, r)
     for t in reversed(pri):
         base = t[:-1]
         if base in q:
@@ -343,13 +391,20 @@ def main():
     n_run, added, errs = 0, 0, []
     nowts = time.time()
     st["hour"] = [x for x in st.get("hour", []) if nowts - x < 3600]
-    run_max = max(0, min(RUN_MAX, HOUR_MAX - len(st["hour"])))
+    if URG:  # лише завдання цих авто; решта черги чекає звичайного запуску
+        orig = [t for t in q if t not in pri]
+        q[:] = [t for t in pri]
+        run_max = max(0, min(URG_MAX, HOUR_MAX - len(st["hour"])))
+    else:    # звичайне наповнення не чіпає годинний запас для кнопки «Завантажити зараз»
+        run_max = max(0, min(RUN_MAX, HOUR_MAX - RESERVE - len(st["hour"])))
     prices = load(f"{DIR}/prices.json", {"src": "AUTO.RIA", "url": "https://auto.ria.com", "cars": {}})
     while q and n_run < run_max and st["used"] < MONTH_MAX:
         t = q[0]
         cur = t
         weekly = t[-1] == "w"
         prio = t[-1] == "r"
+        if URG and not prio:
+            break
         if prio:
             t = t[:-1]
         if not weekly and t[0] != "price" and json.dumps(t) in done:
@@ -399,8 +454,10 @@ def main():
                             added += 1
                         tk = ["mods", gid]
                         if json.dumps(tk) not in done:
-                            if prio:
-                                push(["mods", gid, "r"], front=True)  # покоління авто користувача — одразу й модифікації
+                            yrs = [int(r_["y"]) for r_ in st["req"].values() if str(r_.get("model")) == str(model) and str(r_.get("y", "")).isdigit()]
+                            fits = not yrs or any((g.get("yearFrom") or 0) <= yy <= (g.get("yearTo") or 9999) for yy in yrs)
+                            if prio and fits:
+                                push(["mods", gid, "r"], front=True)  # покоління авто користувача (його років) — одразу й модифікації
                             else:
                                 push(tk)
             elif kind == "price":
@@ -481,6 +538,22 @@ def main():
             q.extend(st.pop("later"))
         time.sleep(1.2)
 
+    if URG:
+        left = [t for t in q if t[-1] == "r"]
+        q[:] = left + [t for t in orig if t not in left]
+        fin = []
+        for rid, nid in urg.items():
+            r = st["req"].get(rid)
+            if not r:
+                continue
+            rest = plan(rid, r)
+            got = st.get("price", {}).get(rid) == today or not r.get("y")
+            if r.get("ok") and got or r.get("why") in ("марки немає в довіднику", "моделі не знайдено"):
+                fin.append(nid)
+            else:
+                for t in reversed(rest):
+                    push(t, front=True)
+        fs_delete(fin)
     st["done"] = sorted(done)
     st["left"] = len(q) + len(st.get("later", []))
     save(DB, db)

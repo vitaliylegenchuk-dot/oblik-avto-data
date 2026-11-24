@@ -7,7 +7,7 @@ on:
     paths: ["scripts/ria.py", ".github/workflows/ria.yml", "ria/kick"]
 permissions:
   contents: write
-concurrency: weather
+concurrency: ria
 jobs:
   update:
     runs-on: ubuntu-latest
