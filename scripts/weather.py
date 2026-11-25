@@ -28,9 +28,16 @@ def fetch():
          "current": CURRENT, "hourly": HOURLY, "daily": DAILY, "timezone": "Europe/Kyiv",
          "forecast_days": 3, "past_hours": 6, "wind_speed_unit": "ms"}
     url = "https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode(q)
-    with urllib.request.urlopen(url, timeout=60) as r:
-        d = json.load(r)
-    return d if isinstance(d, list) else [d]
+    import time
+    for i, wait in enumerate((5, 20, 45, 0)):  # Open-Meteo інколи не відповідає: кілька спроб
+        try:
+            with urllib.request.urlopen(url, timeout=30) as r:
+                d = json.load(r)
+            return d if isinstance(d, list) else [d]
+        except Exception as e:
+            print(f"спроба {i + 1}: {e}")
+            if wait: time.sleep(wait)
+    return None
 
 def part(h):
     return "вночі" if h < 6 else "вранці" if h < 11 else "вдень" if h < 17 else "увечері"
@@ -88,6 +95,8 @@ def r1(v): return None if v is None else round(v, 1)
 
 def main():
     data = fetch()
+    if not data:  # сервіс погоди недоступний: лишаємо попередній weather.json, наступний запуск оновить
+        print("Open-Meteo недоступний, weather.json не змінено"); return
     now = datetime.datetime.now(ZoneInfo("Europe/Kyiv")).replace(tzinfo=None)
     places = []
     for p, d in zip(PLACES, data):
