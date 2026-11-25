@@ -3,6 +3,28 @@
  "used": 404,
  "queue": [
   [
+   "models",
+   6,
+   79,
+   "r"
+  ],
+  [
+   "models",
+   7,
+   79,
+   "r"
+  ],
+  [
+   "price",
+   "toyota_corolla_2018",
+   "r"
+  ],
+  [
+   "gens",
+   702,
+   "r"
+  ],
+  [
    "gens",
    33040
   ],
@@ -7676,10 +7698,6 @@
   ],
   [
    "gens",
-   702
-  ],
-  [
-   "gens",
    69740
   ],
   [
@@ -12978,7 +12996,7 @@
   "[\"mods\", 9904]"
  ],
  "weekly": "2026-48",
- "left": 3150,
+ "left": 3153,
  "req": {
   "ford_fusion_2013_а_95": {
    "n": "Ford Fusion",
@@ -13314,11 +13332,30 @@
   "mitsubishi_carisma_2003_газ_і_бензин": {
    "n": "Mitsubishi Carisma",
    "vt": "car",
-   "ok": false,
+   "ok": true,
    "y": "2003",
    "f": "Газ і бензин",
    "model": 449,
    "mark": 52,
+   "cat": 1,
+   "why": ""
+  },
+  "toyota": {
+   "n": "Toyota",
+   "vt": "car",
+   "ok": false,
+   "y": "",
+   "f": "",
+   "why": "шукаємо модель в інших категоріях"
+  },
+  "toyota_corolla_2018": {
+   "n": "Toyota Corolla",
+   "vt": "car",
+   "ok": false,
+   "y": "2018",
+   "f": "",
+   "model": 702,
+   "mark": 79,
    "cat": 1,
    "why": "чекаємо покоління"
   }
