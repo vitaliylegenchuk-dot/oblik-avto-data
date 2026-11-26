@@ -1,6 +1,6 @@
 {
   "updated": "2026-11-25",
-  "checked": "2026-11-25",
+  "checked": "2026-11-26",
   "currency": "UAH",
   "unit": "л",
   "source": "Середні ціни по Україні, index.minfin.com.ua (дані Консалтингової групи А-95)",
@@ -11,7 +11,7 @@
     "a92": 77.94,
     "dp": 96.97,
     "gas": 61.88,
-    "a100": 94.96
+    "a100": 94.16
   },
   "names": {
     "a100": "А-100",
@@ -1307,18 +1307,18 @@
     },
     {
       "date": "2026-11-25",
+      "a100": 94.16,
       "a95p": 85.13,
       "a95": 81.57,
       "a92": 77.94,
       "dp": 96.97,
-      "gas": 61.88,
-      "a100": 94.96
+      "gas": 61.88
     }
   ],
   "a100": {
-    "date": "2026-11-25",
+    "date": "2026-11-26",
     "source": "Середня по мережах UPG, ОККО, WOG, SOCAR, KLO (Главком); Мінфін середню ціну А-100 не рахує",
-    "source_url": "https://glavcom.ua/economics/personal-money/tsini-na-palne-25-listopada-2026-roku-skilki-koshtujut-benzin-dizel-ta-haz-na-azs-1157681.html"
+    "source_url": "https://glavcom.ua/economics/personal-money/tsini-na-palne-26-listopada-2026-roku-skilki-koshtujut-benzin-dizel-ta-haz-na-azs-1157925.html"
   },
   "history_note": "Середні ціни Мінфіну (Консалтингова група А-95): до 14.09.2026 — один запис на тиждень і перший день місяця, далі — щодня (робочі дні)."
 }
