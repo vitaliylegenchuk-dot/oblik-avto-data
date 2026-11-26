@@ -16,6 +16,7 @@
 Для застосунку: ria/marks.json (список марок) і ria/m/<id марки>.json (моделі → покоління → модифікації).
 Дані: AUTO.RIA (https://auto.ria.com) — посилання на джерело обов'язкове.
 """
+import zlib
 import datetime
 import json
 import os
@@ -594,12 +595,15 @@ def export(db, today):
     by_gen = {}
     for mid, m in db["mods"].items():
         by_gen.setdefault(str(m["g"]), []).append({"id": int(mid), "n": m["n"]})
+    # ручні виправлення там, де в джерелі помилка (ria/fix.json): перелік модифікацій покоління замінюємо повністю
+    for gid, fx in (load(f"{DIR}/fix.json", {}).get("gens") or {}).items():
+        by_gen[str(gid)] = [{"id": 900000000 + zlib.crc32(f"{gid}|{n}".encode("utf-8")) % 90000000, "n": n, "k": i} for i, n in enumerate(fx.get("mods", []))]
     by_mark = {}
     for mid, m in db["models"].items():
         gens = []
         for gid, g in sorted(by_model.get(mid, []), key=lambda x: (x[1].get("y1") or 0)):
             gens.append({"id": int(gid), "n": g["n"], "y1": g.get("y1"), "y2": g.get("y2"),
-                         "mods": sorted(by_gen.get(gid, []), key=lambda x: x["n"])})
+                         "mods": [{"id": x["id"], "n": x["n"]} for x in sorted(by_gen.get(gid, []), key=lambda x: (x.get("k", 0), x["n"]) if "k" in x else (0, x["n"]))]})
         by_mark.setdefault(str(m["mk"]), []).append({"id": int(mid), "n": m["n"], "cat": m.get("cat", 1), "gens": gens})
     for mk, models in by_mark.items():
         models.sort(key=lambda x: x["n"].lower())
