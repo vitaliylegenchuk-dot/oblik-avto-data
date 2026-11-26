@@ -15617,13 +15617,13 @@
   "ford_c_max_2007": {
    "n": "Ford C-Max",
    "vt": "car",
-   "ok": false,
+   "ok": true,
    "y": "2007",
    "f": "",
    "model": 2036,
    "mark": 24,
    "cat": 1,
-   "why": "чекаємо покоління"
+   "why": ""
   }
  },
  "hour": [
