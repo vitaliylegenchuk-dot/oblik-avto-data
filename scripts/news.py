@@ -25,56 +25,72 @@ OUT = Path(__file__).resolve().parent.parent / "news.json"
 KEEP_DAYS = 45     # скільки днів тримати новини у файлі
 MAX_ITEMS = 150
 NEW_DAYS = 4       # нові новини беремо лише за останні дні: стрічки інколи віддають давнє
-PER_DAY = 6        # не більше новин на один день
-PER_SRC_DAY = 3    # і не більше трьох з одного джерела
-UA = "Mozilla/5.0 (compatible; oblik-avto-news/1.0; +https://github.com/vitaliylegenchuk-dot/oblik-avto-data)"
+PER_DAY = 5        # не більше новин на один день
+PER_SRC_DAY = 2    # з одного джерела
+GLOBAL_PER_DAY = 1 # і лише одна «світова» новина на день: насамперед те, що стосується водіїв в Україні
+HDR = {"User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+       "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",
+       "Accept-Language": "uk-UA,uk;q=0.9,en;q=0.5"}
 
 # auto=True: уся стрічка про авто; інакше беремо лише новини з «автомобільними» словами в заголовку.
 # path: посилання мусить містити цей шматок (рубрика «Авто» в загальній стрічці).
-# w: вага джерела (практичні українські новини вище за світові прем'єри).
+# ua=True: усе зі стрічки стосується водіїв в Україні. w: вага джерела.
 SOURCES = [
-    {"s": "ГСЦ МВС", "u": "https://hsc.gov.ua/feed/", "w": 3, "auto": True},
+    {"s": "ГСЦ МВС", "u": "https://hsc.gov.ua/feed/", "w": 3, "auto": True, "ua": True},
     {"s": "NV Авто", "u": "https://nv.ua/ukr/rss/154.xml", "w": 1, "path": "/auto/"},
-    {"s": "AUTO.RIA", "u": "https://auto.ria.com/uk/news/rss/", "w": 2, "auto": True},
-    {"s": "Укравтопром", "u": "https://ukrautoprom.com.ua/feed/", "w": 2, "auto": True},
+    {"s": "Укравтопром", "u": "https://ukrautoprom.com.ua/feed/", "w": 1, "auto": True},
     {"s": "Autogeek", "u": "https://autogeek.com.ua/feed/", "w": 1, "auto": True},
     {"s": "Автоцентр", "u": "https://www.autocentre.ua/feed", "w": 1, "auto": True},
-    {"s": "ТСН", "u": "https://tsn.ua/rss/full.rss", "w": 1, "path": "/auto/"},
     {"s": "УНІАН", "u": "https://rss.unian.net/site/news_ukr.rss", "w": 1},
+    {"s": "ТСН", "u": "https://tsn.ua/rss/full.rss", "w": 1},
     {"s": "Укрінформ", "u": "https://www.ukrinform.ua/rss/block-lastnews", "w": 1},
     {"s": "Економічна правда", "u": "https://www.epravda.com.ua/rss/", "w": 1},
 ]
+SRC = {x["s"]: x for x in SOURCES}
 
-AUTO_RX = re.compile(
-    r"водій|водії|водіям|водіїв|автомоб|\bавто\b|автівк|\bмашин|штраф\w*.{0,30}(?:водії|водіїв|водіям|швидк|паркув|пдр|авто|вихлоп|прямот)|\bпдр\b|пальн|бензин|"
-    r"дизел|автогаз|\bазс\b|\bшин[иаму]?\b|техогляд|осцпв|автоцивілк|розмитн|номерн\w* знак|посвідчен\w* водія|"
-    r"паркув|евакуатор|укравтодор|патрульн|електромоб|електрокар|зарядн\w* станц|автосервіс|\bсто\b", re.I)
+# для загальних стрічок: у заголовку мусить бути щось саме про водіїв і авто
+STRONG_RX = re.compile(
+    r"водій|водії|водіям|водіїв|автомобіл|автівк|\bпдр\b|\bпальн(?:е|ого|ому|им)\b|бензин|дизел|автогаз|\bазс\b|"
+    r"штраф\w*.{0,30}(?:водії|водіїв|водіям|швидк|паркув|пдр|авто|вихлоп|прямот)|техогляд|осцпв|автоцивілк|розмитн|"
+    r"номерн\w* знак|посвідчен\w* водія|паркуван|евакуатор|укравтодор|електромоб|електрокар|зарядн\w* станц|автосервіс|"
+    r"дорожн\w* знак|шиномонтаж|зимов\w* (?:шин|гум)|\bшини\b|"
+    r"(?:продаж|ринок|ринку|ввез|ввіз|імпорт|ціни на|подорожч|подешевш)\w*.{0,25}\b(?:авто|машин)|"
+    r"\b(?:авто|машин)\w*.{0,25}(?:ринок|ринку|продаж|ввез|розмитн)", re.I)
 NEG_RX = re.compile(
     r"загин|загибл|смерт|помер|вбив|постраждал|травмув|\bдтп\b|аварі|п.ян|нетверез|викра|угна|шахед|обстріл|ракет|"
-    r"дрон|фронт|\bзсу\b|\bтцк\b|мобіліз|окупант|росі|\bрф\b|гороскоп|розіграш|реклам|партнерськ|\bпромо", re.I)
+    r"дрон|фронт|\bзсу\b|\bтцк\b|мобіліз|окупант|росі|\bрф\b|гороскоп|розіграш|реклам|партнерськ|\bпромо|"
+    r"врізав|зіткн|перекину|вибух|підпал|згорі|пожеж|затрима|підозр|вирок|хабар|корупц|контрабанд", re.I)
 SKIP_RX = re.compile(  # службове з сайтів відомств: нікому з водіїв не цікаво
     r"нарад|зустріч|вітаємо|привітан|вакансі|тендер|закупівл|день народження|подяк|відзнак|нагород|меморандум", re.I)
 RU_RX = re.compile(r"[ыэъё]", re.I)
 RU_WORDS = re.compile(r"\b(?:как|что|это|или|если|будет|нужно|можно|только|теперь|сколько|почему|когда)\b", re.I)
-UA_RX = re.compile(r"україн|українц|водіїв|водіям|для водіїв|сервісн\w* центр|\bмвс\b|кабмін|верховн\w* рад|з 1 ", re.I)
+UA_RX = re.compile(r"україн|українц|водіїв|водіям|для водіїв|сервісн\w* центр|\bмвс\b|кабмін|верховн\w* рад|\bз 1 ", re.I)
 PREMIERE_RX = re.compile(r"концепт|прем.єр|представил|показал|рендер|шпигун|тест-драйв|огляд|фото|відео", re.I)
 
 KINDS = [  # вид новини: застосунок малює мітку й колір
-    ("fuel", r"пальн|бензин|дизел|автогаз|\bазс\b|\bа-9[25]"),
+    ("fuel", r"\bпальн(?:е|ого|ому|им|і)\b|бензин|дизел|автогаз|\bазс\b|\bа-9[25]"),
     ("law", r"штраф|закон|законопро|постанов|кабмін|\bкму\b|верховн\w* рад|\bпдр\b|правил\w* дорожн|кодекс"),
     ("docs", r"посвідчен|права водія|реєстрац|перереєстр|техпаспорт|номерн\w* знак|сервісн\w* центр|\bгсц\b|\bдія\b|"
              r"кабінет\w* водія|іспит|медогляд|медичн\w* довідк|належн\w* користувач|техогляд|осцпв|автоцивілк"),
     ("ev", r"електромоб|електрокар|зарядн|гібрид"),
     ("market", r"продаж|ринок|ринку|ввез|імпорт|розмитн|вживан|нових авто|укравтопром|ціни на авто|реєстрацій"),
-    ("road", r"дорог|трас[аиі]|укравтодор|міст[иу]? |об.їзд|перекрит"),
+    ("road", r"\bдорог(?:а|и|і|ах|ами)\b|дорожн|трас[аиі]\b|укравтодор|об.їзд|перекрит"),
 ]
 
 
-def kind_of(t):
+def kind_of(t, x=""):
+    """Вид за заголовком; якщо там нічого, за описом (лише пальне, електро й ринок)."""
     for k, rx in KINDS:
         if re.search(rx, t, re.I):
             return k
+    for k, rx in KINDS:
+        if k in ("fuel", "ev", "market") and re.search(rx, x, re.I):
+            return k
     return "auto"
+
+
+def russian(s):
+    return bool(RU_RX.search(s) or (not re.search(r"[іїєґ]", s, re.I) and RU_WORDS.search(s)))
 
 
 def nodash(s, title=False):
@@ -162,14 +178,21 @@ def parse(raw):
 
 def fetch(src):
     import requests
-    r = requests.get(src["u"], headers={"User-Agent": UA, "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*"},
-                     timeout=25)
+    r = requests.get(src["u"], headers=HDR, timeout=25)
     r.raise_for_status()
     return r.content
 
 
-def russian(s):
-    return bool(RU_RX.search(s) or (not re.search(r"[іїєґ]", s, re.I) and RU_WORDS.search(s)))
+def relevant(src, t):
+    if russian(t) or NEG_RX.search(t) or SKIP_RX.search(t):
+        return False
+    return bool(src.get("auto") or src.get("path") or STRONG_RX.search(t))
+
+
+def score_of(src, t, x, k):
+    ua = bool(src.get("ua") or UA_RX.search(t + " " + x))
+    sc = src["w"] + (2 if ua else 0) + (2 if k in ("law", "docs", "fuel") else 1 if k in ("market", "ev", "road") else 0)
+    return sc - (2 if PREMIERE_RX.search(t) else 0), ua
 
 
 def candidates(src, entries, now):
@@ -183,9 +206,7 @@ def candidates(src, entries, now):
             continue
         if src.get("path") and src["path"] not in link:
             continue
-        if russian(t) or NEG_RX.search(t) or SKIP_RX.search(t):
-            continue
-        if not src.get("auto") and not src.get("path") and not AUTO_RX.search(t):
+        if not relevant(src, t):
             continue
         d = e["date"]
         if d > now + dt.timedelta(hours=2) or (now - d).days >= NEW_DAYS:
@@ -196,33 +217,50 @@ def candidates(src, entries, now):
         if russian(x):
             x = ""
         x = cut(nodash(x))
-        k = kind_of(t + " " + x)
-        score = src["w"] + (2 if UA_RX.search(t + " " + x) else 0) + (2 if k in ("law", "docs", "fuel") else 1 if k in ("market", "ev", "road") else 0)
-        score -= 2 if PREMIERE_RX.search(t) else 0
+        k = kind_of(t, x)
+        sc, ua = score_of(src, t, x, k)
+        if not ua and PREMIERE_RX.search(t):
+            continue  # світові прем'єри й фотоогляди: не для цього розділу
         out.append({"id": nid(link), "d": d.strftime("%Y-%m-%d"), "tm": d.strftime("%H:%M"), "t": t, "x": x,
-                    "s": src["s"], "u": link, "k": k, "_sc": score})
+                    "s": src["s"], "u": link, "k": k, "_sc": sc, "_ua": ua})
     return out
 
 
 def merge(old, cands, today):
-    items = [i for i in old if i.get("d", "") >= (today - dt.timedelta(days=KEEP_DAYS)).isoformat()]
-    have = {i["id"] for i in items}
+    """Добірку ("ed") лишаємо як є; решту відбираємо заново за тими самими правилами, що й нові."""
+    lim = (today - dt.timedelta(days=KEEP_DAYS)).isoformat()
+    items = [dict(i, _ua=True) for i in old if i.get("ed") and i.get("d", "") >= lim]
+    pool = []
+    for i in old:
+        if i.get("ed") or i.get("d", "") < lim:
+            continue
+        src = SRC.get(i["s"], {"s": i["s"], "w": 1})
+        if not relevant(src, i["t"]):
+            continue
+        k = kind_of(i["t"], i.get("x", ""))
+        sc, ua = score_of(src, i["t"], i.get("x", ""), k)
+        pool.append(dict(i, k=k, _sc=sc + 1, _ua=ua))  # +1: уже показана новина не поступається рівній новій
+    seen = {i["id"] for i in items} | {i["id"] for i in pool}
+    pool += [c for c in cands if c["id"] not in seen]
+    old_ids = {i["id"] for i in old}
     added = []
-    for c in sorted(cands, key=lambda c: (c["_sc"], c["d"] + c["tm"]), reverse=True):
-        if c["id"] in have:
+    for c in sorted(pool, key=lambda c: (c["_sc"], c["d"] + c["tm"]), reverse=True):
+        if any(i["id"] == c["id"] for i in items):
             continue
         cd = dt.date.fromisoformat(c["d"])
-        near = [i for i in items if abs((dt.date.fromisoformat(i["d"]) - cd).days) <= 3]
         w = words(c["t"])
-        if any(len(w & words(i["t"])) / max(1, len(w | words(i["t"]))) >= 0.5 for i in near):
+        if any(abs((dt.date.fromisoformat(i["d"]) - cd).days) <= 3 and len(w & words(i["t"])) / max(1, len(w | words(i["t"]))) >= 0.5
+               for i in items):
             continue  # ця сама подія з іншого джерела
         day = [i for i in items if i["d"] == c["d"]]
         if len(day) >= PER_DAY or sum(1 for i in day if i["s"] == c["s"]) >= PER_SRC_DAY:
             continue
-        c = {k: v for k, v in c.items() if not k.startswith("_")}
+        if not c["_ua"] and sum(1 for i in day if not i.get("_ua")) >= GLOBAL_PER_DAY:
+            continue
         items.append(c)
-        have.add(c["id"])
-        added.append(c)
+        if c["id"] not in old_ids:
+            added.append(c)
+    items = [{k: v for k, v in i.items() if not k.startswith("_")} for i in items]
     items.sort(key=lambda i: (i["d"], i.get("tm", "")), reverse=True)
     return items[:MAX_ITEMS], added
 
@@ -254,6 +292,9 @@ def main():
         except Exception as e:
             print(f"{src['s']:20} ПОМИЛКА {type(e).__name__}: {str(e)[:120]}", flush=True)
     items, added = merge(old, cands, now.date())
+    gone = {i["id"] for i in old} - {i["id"] for i in items}
+    if gone:
+        print(f"Прибрано за новими правилами: {len(gone)}")
     for a in added:
         print(f"+ {a['d']} {a['tm']} [{a['k']}] {a['s']}: {a['t']}")
     print(f"Нових: {len(added)}, усього в news.json: {len(items)}")
