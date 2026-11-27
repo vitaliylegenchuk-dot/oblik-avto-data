@@ -122,8 +122,19 @@ STARTERS = (r"На|У|В|З|За|Із|Це|Як|Що|Для|Під|Після|Ч
 JOIN_RX = re.compile(r"([а-яіїєґ'’]{3,}) (" + STARTERS + r")\b")
 
 
+CAP_RX = re.compile(r"([а-яіїєґ'’]{3,}) ([А-ЯІЇЄҐ][а-яіїєґ'’]{2,})")
+
+
 def unjoin(s):
-    return JOIN_RX.sub(r"\1. \2", s)
+    """Крапка перед службовим словом з великої літери і перед словом, яке вже траплялося в тексті раніше
+    (опис повторює підзаголовок: «…після провітрювання Запах тютюну…»)."""
+    s = JOIN_RX.sub(r"\1. \2", s)
+
+    def f(m):
+        w = m.group(2).lower()
+        seen = re.search(r"(?<![а-яіїєґ'’])" + re.escape(w) + r"(?![а-яіїєґ'’])", s[:m.start()].lower())
+        return m.group(1) + (". " if seen else " ") + m.group(2)
+    return CAP_RX.sub(f, s)
 
 
 def cut(s, n=220):
