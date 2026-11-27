@@ -3,7 +3,8 @@
 Працює ~50 хвилин, щохвилини перевіряє:
   • кнопку «Завантажити зараз» у застосунку (документи now_* у Firestore) → запускає ria-now.yml;
   • щогодини о :41 → довідник AUTO.RIA (ria.yml);
-  • погоду: о :17 кожні 3 години і о 04:01, 05:01 UTC → weather.yml.
+  • погоду: о :17 кожні 3 години і о 04:01, 05:01 UTC → weather.yml;
+  • автоновини: о 05:23, 09:23, 13:23, 17:23 UTC → news.yml.
 Наприкінці запускає сам себе знову (наступний запуск чекає в черзі, доки цей не завершиться).
 Запуск, який уже відбувся (за розкладом GitHub чи вручну), повторно не дублює.
 """
@@ -62,6 +63,7 @@ def due(now, slots):
 
 RIA_SLOTS = [(None, 41)]
 WX_SLOTS = [(range(0, 24, 3), 17), ([4, 5], 1)]
+NEWS_SLOTS = [([5, 9, 13, 17], 23)]
 
 
 def check(wf, slots, now):
@@ -114,6 +116,7 @@ def main():
         if time.time() - last_chk >= 60:
             check("ria.yml", RIA_SLOTS, now)
             check("weather.yml", WX_SLOTS, now)
+            check("news.yml", NEWS_SLOTS, now)
             last_chk = time.time()
         time.sleep(15)
     dispatch("bot.yml", "наступна зміна")

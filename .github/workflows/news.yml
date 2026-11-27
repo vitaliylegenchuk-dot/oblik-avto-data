@@ -1,0 +1,30 @@
+name: Автоновини
+on:
+  schedule:
+    - cron: "23 5,9,13,17 * * *"   # 07:23, 11:23, 15:23, 19:23 за Києвом узимку (вчасно запускає диспетчер bot.yml)
+  workflow_dispatch:
+  push:
+    paths: ["scripts/news.py", ".github/workflows/news.yml"]
+permissions:
+  contents: write
+concurrency: news
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Оновити news.json
+        run: |
+          pip install -q requests
+          python scripts/news.py
+      - name: Зберегти
+        run: |
+          git config user.name "news-bot"
+          git config user.email "news-bot@users.noreply.github.com"
+          git add -A -- news.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Автоновини: $(date -u +'%Y-%m-%d %H:%M') UTC"
+          for i in 1 2 3; do git pull --rebase --autostash -q && git push && break; sleep 5; done
