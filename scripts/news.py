@@ -115,6 +115,17 @@ def clean(s):
     return re.sub(r"\s+", " ", s).strip()
 
 
+# У деяких стрічках підзаголовок і перший абзац злиплися без крапки: «…двигуна На контактах…»
+STARTERS = (r"На|У|В|З|За|Із|Це|Як|Що|Для|Під|Після|Через|Також|Однак|Але|При|Від|До|Про|Серед|Іноді|Часто|Зазвичай|Тому|Тож|"
+            r"Саме|Нині|Зараз|Раніше|Відтепер|Отже|Крім|Попри|Щоб|Якщо|Коли|Його|Її|Їх|Ці|Цей|Ця|Такі|Такий|Така|Утім|"
+            r"Водночас|Натомість|Окрім|Згідно|Відповідно|Йдеться|Експерти|Фахівці|Водії|Власники")
+JOIN_RX = re.compile(r"([а-яіїєґ'’]{3,}) (" + STARTERS + r")\b")
+
+
+def unjoin(s):
+    return JOIN_RX.sub(r"\1. \2", s)
+
+
 def cut(s, n=220):
     if len(s) <= n:
         return s
@@ -222,7 +233,7 @@ def candidates(src, entries, now):
             x = x[len(rt):].lstrip(" .:,")
         if russian(x):
             x = ""
-        x = cut(nodash(x))
+        x = cut(unjoin(nodash(x)))
         k = kind_of(t, x)
         if k == "fuel" and DAILY_RX.search(t):
             continue  # щоденне зведення цін на АЗС: застосунок має власні ціни
@@ -249,7 +260,7 @@ def merge(old, cands, today):
         if k == "fuel" and DAILY_RX.search(i["t"]):
             continue
         sc, ua = score_of(src, i["t"], i.get("x", ""), k)
-        pool.append(dict(i, k=k, _sc=sc + 1, _ua=ua))  # +1: уже показана новина не поступається рівній новій
+        pool.append(dict(i, k=k, x=unjoin(i.get("x", "")), _sc=sc + 1, _ua=ua))  # +1: уже показана новина не поступається рівній новій
     seen = {i["id"] for i in items} | {i["id"] for i in pool}
     pool += [c for c in cands if c["id"] not in seen]
     old_ids = {i["id"] for i in old}
