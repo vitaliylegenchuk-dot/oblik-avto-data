@@ -16,6 +16,7 @@
 Для застосунку: ria/marks.json (список марок) і ria/m/<id марки>.json (моделі → покоління → модифікації).
 Дані: AUTO.RIA (https://auto.ria.com) — посилання на джерело обов'язкове.
 """
+import difflib
 import zlib
 import datetime
 import json
@@ -200,11 +201,38 @@ ALIAS = {"vw": "volkswagen", "фольксваген": "volkswagen", "мерсе
          "лексус": "lexus", "субару": "subaru", "вольво": "volvo", "фіат": "fiat", "сузукі": "suzuki", "тесла": "tesla"}
 
 
-def resolve(db, name, vt):
-    """«Ford Fusion», «Vw Lt35» → (марка, модель) за довідником. Повертає (mark, model_id, cats)."""
-    w = norm(name)
+def alias(w):
+    """«мерседес віто» → «mercedes benz віто»; уже повна назва («Mercedes-Benz Sprinter») лишається як є,
+    інакше «benz» подвоювався і модель не знаходилась."""
     if w and w[0] in ALIAS:
-        w = ALIAS[w[0]].split() + w[1:]
+        a = ALIAS[w[0]].split()
+        if w[:len(a)] != a:
+            w = a + w[1:]
+    return w
+
+
+def model_rest(db, name):
+    """Частина назви після марки, без пробілів: «Chevrolet Bolt» → «bolt» (для підказок, коли модель не знайдено)."""
+    w = alias(norm(name))
+    best, words = 0, set()
+    for m in db["marks"].values():
+        for alt in m["n"].split(" / "):
+            a = norm(alt)
+            if a and w[:len(a)] == a and len(a) >= best:
+                if len(a) > best:
+                    words = set()
+                best = len(a)
+                words |= {x for al in m["n"].split(" / ") for x in norm(al)}
+    while best < len(w) - 1 and w[best] in words:
+        best += 1
+    return "".join(w[best:])
+
+
+def resolve(db, name, vt, y=None):
+    """«Ford Fusion», «Vw Lt35» → (марка, модель) за довідником. Повертає (mark, model_id, cats).
+    Якщо назву моделі вписано коротше, ніж на AUTO.RIA («Chevrolet Bolt» замість «Bolt EV»), беремо модель, що з неї починається:
+    спершу ту, чиє покоління охоплює рік авто, далі з найкоротшою назвою."""
+    w = alias(norm(name))
     cats = VT_CAT.get(vt, [1])
     order = cats + [c for c in (1, 6, 7, 2, 8, 5, 4) if c not in cats]
     found = []  # (пріоритет категорії, марка, довжина збігу)
@@ -219,7 +247,12 @@ def resolve(db, name, vt):
         return None, None, cats
     found.sort(key=lambda x: (-x[2], x[0]))
     best_k = found[0][2]
-    rest = "".join(w[best_k:])
+    # «ВАЗ Lada 2107», «Лада 2107» → модель «2107»: друга назва тієї самої марки — не частина моделі
+    mk_words = {x for _, m, k in found if k == best_k for alt in m["n"].split(" / ") for x in norm(alt)}
+    skip = best_k
+    while skip < len(w) - 1 and w[skip] in mk_words:
+        skip += 1
+    rest = "".join(w[skip:])
     first = None
     for _, mark, k in [f for f in found if f[2] == best_k]:
         models = [(mid, md) for mid, md in db["models"].items() if md.get("mk") == mark["id"] and md.get("cat") == mark["cat"]]
@@ -232,6 +265,15 @@ def resolve(db, name, vt):
                        if rest.startswith("".join(norm(md["n"]))) and norm(md["n"])), reverse=True)
         if pref:
             return mark, pref[0][1], cats
+        longer = [(mid, md) for mid, md in models if len(rest) >= 3 and "".join(norm(md["n"])).startswith(rest)]
+        if longer:
+            def fits(mid):
+                if not (y and str(y).isdigit()):
+                    return False
+                yy = int(y)
+                return any((g.get("y1") or 0) <= yy <= (g.get("y2") or 9999) for g in db["gens"].values() if str(g.get("md")) == str(mid))
+            longer.sort(key=lambda x: (not fits(x[0]), len("".join(norm(x[1]["n"]))), x[1]["n"]))
+            return mark, longer[0][0], cats
     return first[0], None, cats
 
 
@@ -346,7 +388,7 @@ def main():
             if r.get("y") and r.get("model") and (not pd or (datetime.date.fromisoformat(today) - datetime.date.fromisoformat(pd)).days >= PRICE_DAYS):
                 pri.append(["price", rid, "r"])
             return pri
-        mark, mid, _ = resolve(db, r["n"], r["vt"])
+        mark, mid, _ = resolve(db, r["n"], r["vt"], r.get("y"))
         if not mark:
             r["why"] = "марки немає в довіднику"
             return pri
@@ -363,8 +405,14 @@ def main():
                 pri += more; r["why"] = "шукаємо модель в інших категоріях"
             else:
                 r["why"] = "моделі не знайдено"
+                # підказка для застосунку: схожі назви моделей цієї марки на AUTO.RIA
+                rest = model_rest(db, r["n"])
+                names = sorted({x["n"] for x in mk_models})
+                close = difflib.get_close_matches(rest, ["".join(norm(n)) for n in names], n=3, cutoff=0.6)
+                r["alt"] = [n for n in names if "".join(norm(n)) in close][:3]
             return pri
         r["model"], r["mark"], r["cat"] = int(mid), mark["id"], mark["cat"]
+        r.pop("alt", None)
         pd = st.setdefault("price", {}).get(rid, "")
         if r.get("y") and (not pd or (datetime.date.fromisoformat(today) - datetime.date.fromisoformat(pd)).days >= PRICE_DAYS):
             pri.append(["price", rid, "r"])
@@ -575,6 +623,8 @@ def main():
             prices["usd"] = {"rate": nb["rate"], "date": nb.get("exchangedate", "")}
     except Exception as e:
         errs.append(f"НБУ: {e}")
+    prices["why"] = {rid: dict({"w": r["why"]}, **({"alt": r["alt"]} if r.get("alt") else {}))
+                     for rid, r in st["req"].items() if not r.get("ok") and r.get("why") in ("марки немає в довіднику", "моделі не знайдено")}
     save(f"{DIR}/prices.json", dict(prices, updated=today), pretty=True)
     export(db, today)
     msg = (f"{datetime.datetime.utcnow():%Y-%m-%d %H:%M} UTC · запитів {n_run}, за місяць {st['used']}, "
