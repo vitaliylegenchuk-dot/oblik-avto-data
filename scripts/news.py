@@ -35,16 +35,20 @@ HDR = {"User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.3
 # auto=True: уся стрічка про авто; інакше беремо лише новини з «автомобільними» словами в заголовку.
 # path: посилання мусить містити цей шматок (рубрика «Авто» в загальній стрічці).
 # ua=True: усе зі стрічки стосується водіїв в Україні. w: вага джерела.
+# Сайти ГСЦ МВС, «Автоцентру» й «Економічної правди» не віддають стрічку серверам GitHub (403),
+# тож роз'яснення сервісних центрів беремо з новин медіа, які їх переказують.
 SOURCES = [
-    {"s": "ГСЦ МВС", "u": "https://hsc.gov.ua/feed/", "w": 3, "auto": True, "ua": True},
     {"s": "NV Авто", "u": "https://nv.ua/ukr/rss/154.xml", "w": 1, "path": "/auto/"},
     {"s": "Укравтопром", "u": "https://ukrautoprom.com.ua/feed/", "w": 1, "auto": True},
     {"s": "Autogeek", "u": "https://autogeek.com.ua/feed/", "w": 1, "auto": True},
-    {"s": "Автоцентр", "u": "https://www.autocentre.ua/feed", "w": 1, "auto": True},
     {"s": "УНІАН", "u": "https://rss.unian.net/site/news_ukr.rss", "w": 1},
     {"s": "ТСН", "u": "https://tsn.ua/rss/full.rss", "w": 1},
     {"s": "Укрінформ", "u": "https://www.ukrinform.ua/rss/block-lastnews", "w": 1},
-    {"s": "Економічна правда", "u": "https://www.epravda.com.ua/rss/", "w": 1},
+    {"s": "24 Канал", "u": "https://24tv.ua/rss/all.xml", "w": 1},
+    {"s": "РБК-Україна", "u": "https://www.rbc.ua/static/rss/all.ukr.rss.xml", "w": 1},
+    {"s": "Суспільне", "u": "https://suspilne.media/rss/all.rss", "w": 1},
+    {"s": "Главком", "u": "https://glavcom.ua/rss.xml", "w": 1},
+    {"s": "Finance.ua", "u": "https://news.finance.ua/ua/rss", "w": 1},
 ]
 SRC = {x["s"]: x for x in SOURCES}
 
