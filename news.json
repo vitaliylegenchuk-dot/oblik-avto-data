@@ -1,17 +1,7 @@
 {
- "updated": "2026-11-27T18:49:26Z",
+ "updated": "2026-11-27T18:52:43Z",
  "note": "Автоновини для водіїв: заголовок, короткий опис і посилання на першоджерело. Оновлює scripts/news.py.",
  "items": [
-  {
-   "id": "n9298da7980",
-   "d": "2026-11-27",
-   "tm": "15:40",
-   "t": "Туристичні газові пальники у квартирах: експерт пояснив небезпеку та дав поради",
-   "x": "Михальченко наголошує, що не всі газові балони можуть використовуватися у приміщенні.",
-   "s": "УНІАН",
-   "u": "https://www.unian.ua/economics/energetics/yak-vikoristovuvati-turistichnik-palnik-u-kvartiri-ekspert-rozpoviv-pro-pravila-bezpeki-13573401.html",
-   "k": "fuel"
-  },
   {
    "id": "n8bbbd16bbf",
    "d": "2026-11-27",
@@ -20,17 +10,7 @@
    "x": "Такий знак можна побачити в Литві, Хорватії чи в Україні.",
    "s": "УНІАН",
    "u": "https://www.unian.ua/curiosities/dorozhniy-znak-z-okulyarami-stavit-vodijiv-u-bezvihid-shcho-vin-oznachaye-13572936.html",
-   "k": "auto"
-  },
-  {
-   "id": "n4bac75c26a",
-   "d": "2026-11-27",
-   "tm": "13:26",
-   "t": "Туристи обрали найкращий різдвяний ярмарок Європи: туди можна доїхати на авто з України",
-   "x": "За неповторною святковою атмосферою досвідчені мандрівники радять цієї зими вирушати до Румунії.",
-   "s": "УНІАН",
-   "u": "https://www.unian.ua/tourism/news/rizdvyaniy-yarmarok-v-susidniy-z-ukrajinoyu-rumuniji-viznali-naykrashchim-v-yevropi-chim-vin-vrazhaye-13573152.html",
-   "k": "auto"
+   "k": "road"
   },
   {
    "id": "e-hsc-dkp",
@@ -66,6 +46,16 @@
    "ed": 1
   },
   {
+   "id": "n6260fe95bc",
+   "d": "2026-11-27",
+   "tm": "08:50",
+   "t": "Де дешевше пальне 27 листопада: несподівані знижки на АЗС України",
+   "x": "Одна з найбільших мереж АЗС скинула одразу до 4 грн/л фірмового дизелю та знизила вартість бензину.",
+   "s": "ТСН",
+   "u": "https://tsn.ua/groshi/velyki-azs-vlashtuvaly-tsinovyy-obval-skilky-koshtuye-palne-23-lystopada-3223963.html",
+   "k": "fuel"
+  },
+  {
    "id": "nb5a35cbf91",
    "d": "2026-11-26",
    "tm": "15:48",
@@ -73,16 +63,6 @@
    "x": "Компанія Hedley Studios завершила виробництво перших 25 екземплярів Bentley Blower Jnr. Ці електричні міні-автомобілі, зібрані вручну, вже прямують до своїх власників.",
    "s": "Autogeek",
    "u": "https://autogeek.com.ua/tyrazh-menshe-sotni-bentley-blower-1929-roku-peretvoryly-na-elektromobil/",
-   "k": "ev"
-  },
-  {
-   "id": "n32a1ece5ca",
-   "d": "2026-11-26",
-   "tm": "12:50",
-   "t": "Дорогу електромобілям: Ineos переносить виробництво авто у США",
-   "x": "США за останні два роки стали головним ринком збуту для британської компанії Ineos Automotive, тому її керівництво вирішило перенести виробництво сюди ближче до споживача.",
-   "s": "Autogeek",
-   "u": "https://autogeek.com.ua/dorogu-elektromobilyam-ineos-perenosyt-vyrobnycztvo-avto-u-ssha/",
    "k": "ev"
   },
   {
@@ -95,26 +75,6 @@
    "t": "Теорію на категорію B у 17 років скласти не можна",
    "x": "Самостійно скласти теоретичний іспит у сервісному центрі МВС можна лише з 18 років. Практичний іспит складають після навчання в автошколі та внутрішнього іспиту. Мінімальний вік: 16 років для A1 і A, 18 для B1, B, C1 і C, 19 для BE, C1E і CE, 21 для D.",
    "ed": 1
-  },
-  {
-   "id": "n21378fb37e",
-   "d": "2026-11-26",
-   "tm": "11:51",
-   "t": "Volkswagen платитиме власникам електромобілів за зарядку авто: деталі угоди",
-   "x": "Volkswagen пропонує власникам електромобілів у Німеччині стимул підключати авто до мережі вдома, навіть якщо воно не потребує заряджання.",
-   "s": "Autogeek",
-   "u": "https://autogeek.com.ua/volkswagen-platytyme-vlasnykam-elektromobiliv-za-zaryadku-avto-detali-ugody/",
-   "k": "ev"
-  },
-  {
-   "id": "naec8dd9dbe",
-   "d": "2026-11-26",
-   "tm": "09:48",
-   "t": "Квоти ЄС на гібридні автомобілі надають перевагу Великій Британії, Туреччині, Японії та Південній Кореї, одночасно скорочуючи імпортні квоти для Китаю",
-   "x": "Згідно з даними Automotive News Europe, нові квоти ЄС на імпорт гібридних та плагін-гібридних автомобілів обмежать поставки з Китаю, водночас дозволивши імпорту з Японії, Туреччини, Великої Британії та Південної Кореї…",
-   "s": "Укравтопром",
-   "u": "https://ukrautoprom.com.ua/kvoty-yes-na-gibrydni-avtomobili-nadayut-perevagu-velykij-brytaniyi-turechchyni-yaponiyi-ta-pivdennij-koreyi-odnochasno-skorochuyuchy-importni-kvoty-dlya-kytayu",
-   "k": "ev"
   },
   {
    "id": "e-hsc-fake",
@@ -135,17 +95,7 @@
    "x": "За даними АСЕА, у жовтні 2026 р. ринок нових легкових авто в ЄС зріс в річному обчисленні на 2,6%, до 939 447 од., повідомляє Укравтопром. Найбільший приріст знову продемонстрував сегмент електромобілів.",
    "s": "Укравтопром",
    "u": "https://ukrautoprom.com.ua/yevropejczi-vidmovlyayutsya-vid-mashyn-z-dvz-pidsumky-zhovtnevogo-rynku-novyh-avto",
-   "k": "ev"
-  },
-  {
-   "id": "n2dd7a9e442",
-   "d": "2026-11-25",
-   "tm": "11:15",
-   "t": "ЄС наближається до угоди «Made in Europe» щодо британських автомобілів",
-   "x": "Уряди країн ЄС наближаються до компромісу, який дозволить включити виробництво автомобілів у Великій Британії до рамок ініціативи «Made in Europe» в рамках Закону про промислове прискорення (Industrial Accelerator Act)…",
-   "s": "Укравтопром",
-   "u": "https://ukrautoprom.com.ua/yes-nablyzhayetsya-do-ugody-made-in-europe-shhodo-brytanskyh-avtomobiliv",
-   "k": "law"
+   "k": "market"
   },
   {
    "id": "e-hsc-user",
