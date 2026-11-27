@@ -28,6 +28,7 @@ NEW_DAYS = 4       # нові новини беремо лише за остан
 PER_DAY = 5        # не більше новин на один день
 PER_SRC_DAY = 2    # з одного джерела
 GLOBAL_PER_DAY = 1 # і лише одна «світова» новина на день: насамперед те, що стосується водіїв в Україні
+PER_KIND_DAY = {"fuel": 1}  # про ціни на пальне пишуть щодня всі, а середні ціни застосунок і так показує
 HDR = {"User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
        "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",
        "Accept-Language": "uk-UA,uk;q=0.9,en;q=0.5"}
@@ -47,7 +48,6 @@ SOURCES = [
     {"s": "24 Канал", "u": "https://24tv.ua/rss/all.xml", "w": 1},
     {"s": "РБК-Україна", "u": "https://www.rbc.ua/static/rss/all.ukr.rss.xml", "w": 1},
     {"s": "Суспільне", "u": "https://suspilne.media/rss/all.rss", "w": 1},
-    {"s": "Главком", "u": "https://glavcom.ua/rss.xml", "w": 1},
     {"s": "Finance.ua", "u": "https://news.finance.ua/ua/rss", "w": 1},
 ]
 SRC = {x["s"]: x for x in SOURCES}
@@ -67,6 +67,8 @@ NEG_RX = re.compile(
 SKIP_RX = re.compile(  # службове з сайтів відомств: нікому з водіїв не цікаво
     r"нарад|зустріч|вітаємо|привітан|вакансі|тендер|закупівл|день народження|подяк|відзнак|нагород|меморандум", re.I)
 RU_RX = re.compile(r"[ыэъё]", re.I)
+MONTHS = r"(?:січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня)"
+DAILY_RX = re.compile(r"\b\d{1,2} " + MONTHS, re.I)  # «Ціни на АЗС 26 листопада»: щоденні зведення цін
 RU_WORDS = re.compile(r"\b(?:как|что|это|или|если|будет|нужно|можно|только|теперь|сколько|почему|когда)\b", re.I)
 UA_RX = re.compile(r"україн|українц|водіїв|водіям|для водіїв|сервісн\w* центр|\bмвс\b|кабмін|верховн\w* рад|\bз 1 ", re.I)
 PREMIERE_RX = re.compile(r"концепт|прем.єр|представил|показал|рендер|шпигун|тест-драйв|огляд|фото|відео", re.I)
@@ -222,6 +224,8 @@ def candidates(src, entries, now):
             x = ""
         x = cut(nodash(x))
         k = kind_of(t, x)
+        if k == "fuel" and DAILY_RX.search(t):
+            continue  # щоденне зведення цін на АЗС: застосунок має власні ціни
         sc, ua = score_of(src, t, x, k)
         if not ua and PREMIERE_RX.search(t):
             continue  # світові прем'єри й фотоогляди: не для цього розділу
@@ -242,6 +246,8 @@ def merge(old, cands, today):
         if not relevant(src, i["t"]):
             continue
         k = kind_of(i["t"], i.get("x", ""))
+        if k == "fuel" and DAILY_RX.search(i["t"]):
+            continue
         sc, ua = score_of(src, i["t"], i.get("x", ""), k)
         pool.append(dict(i, k=k, _sc=sc + 1, _ua=ua))  # +1: уже показана новина не поступається рівній новій
     seen = {i["id"] for i in items} | {i["id"] for i in pool}
@@ -260,6 +266,8 @@ def merge(old, cands, today):
         if len(day) >= PER_DAY or sum(1 for i in day if i["s"] == c["s"]) >= PER_SRC_DAY:
             continue
         if not c["_ua"] and sum(1 for i in day if not i.get("_ua")) >= GLOBAL_PER_DAY:
+            continue
+        if c["k"] in PER_KIND_DAY and sum(1 for i in day if i.get("k") == c["k"]) >= PER_KIND_DAY[c["k"]]:
             continue
         items.append(c)
         if c["id"] not in old_ids:
