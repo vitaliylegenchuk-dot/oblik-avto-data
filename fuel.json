@@ -1,17 +1,17 @@
 {
-  "updated": "2026-11-26",
-  "checked": "2026-11-27",
+  "updated": "2026-11-27",
+  "checked": "2026-11-28",
   "currency": "UAH",
   "unit": "л",
-  "source": "Середні ціни по Україні, index.minfin.com.ua (дані Консалтингової групи А-95)",
-  "source_url": "https://index.minfin.com.ua/markets/fuel/",
+  "source": "Середні ціни по Україні, minfin.com.ua (дані Консалтингової групи А-95), через Укрінформ",
+  "source_url": "https://www.ukrinform.ua/rubric-economy/4189275-cini-na-azs-prodovzuut-padati-dizel-podesevsav-bils-niz-na-grivnu.html",
   "prices": {
-    "a95p": 85.09,
-    "a95": 81.49,
-    "a92": 77.94,
-    "dp": 96.55,
-    "gas": 61.53,
-    "a100": 93.96
+    "a95p": 83.85,
+    "a95": 80.54,
+    "a92": 77.66,
+    "dp": 95.35,
+    "gas": 61.31,
+    "a100": 91.76
   },
   "names": {
     "a100": "А-100",
@@ -1322,12 +1322,21 @@
       "a92": 77.94,
       "dp": 96.55,
       "gas": 61.53
+    },
+    {
+      "date": "2026-11-27",
+      "a100": 91.76,
+      "a95p": 83.85,
+      "a95": 80.54,
+      "a92": 77.66,
+      "dp": 95.35,
+      "gas": 61.31
     }
   ],
   "a100": {
-    "date": "2026-11-27",
+    "date": "2026-11-28",
     "source": "Середня по мережах UPG, ОККО, WOG, SOCAR, KLO (Главком); Мінфін середню ціну А-100 не рахує",
-    "source_url": "https://glavcom.ua/economics/personal-money/tsini-na-palne-27-listopada-2026-roku-skilki-koshtujut-benzin-dizel-ta-haz-na-azs-1158180.html"
+    "source_url": "https://glavcom.ua/economics/personal-money/tsini-na-palne-28-listopada-2026-roku-skilki-koshtujut-benzin-dizel-ta-haz-na-azs-1158595.html"
   },
   "history_note": "Середні ціни Мінфіну (Консалтингова група А-95): до 14.09.2026 — один запис на тиждень і перший день місяця, далі — щодня (робочі дні)."
 }
